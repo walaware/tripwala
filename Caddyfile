@@ -1,0 +1,20 @@
+# Single entry point. Everything is same-origin so the browser's PocketBase
+# client (added in the realtime step) needs no CORS config.
+#
+# Local dev over the stack uses :80 inside the container, published as :8080.
+# For production, replace `:80` with your domain and Caddy auto-provisions TLS.
+
+:80 {
+	# PocketBase REST API, realtime, file storage, and admin UI.
+	handle /api/* {
+		reverse_proxy pocketbase:8090
+	}
+	handle /_/* {
+		reverse_proxy pocketbase:8090
+	}
+
+	# Everything else → SvelteKit (adapter-node) server.
+	handle {
+		reverse_proxy web:3000
+	}
+}

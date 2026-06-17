@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-rally-50: #f0fdfa;
+  --color-rally-100: #ccfbf1;
+  --color-rally-500: #14b8a6;
+  --color-rally-600: #0d9488;
+  --color-rally-700: #0f766e;
+  --color-rally-900: #134e4a;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}

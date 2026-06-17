@@ -1,0 +1,52 @@
+# Rally — single self-hosted stack.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8080 (Caddy) → SvelteKit, with PocketBase proxied
+# at /api and /_ . PocketBase admin UI: http://localhost:8080/_/
+#
+# Reverse-proxy friendly: in production put your own TLS proxy in front, or edit
+# the Caddyfile. The web and pocketbase services are not published directly.
+
+services:
+  pocketbase:
+    build:
+      context: ./pocketbase
+    restart: unless-stopped
+    volumes:
+      - pb_data:/pb/pb_data
+    # Create the admin superuser once after first `up`:
+    #   docker compose exec pocketbase /pb/pocketbase superuser upsert <email> <password>
+    # (or open /_/ and use the first-run installer).
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8090/api/health']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: ./web
+    restart: unless-stopped
+    environment:
+      # Server-side PocketBase URL (container network).
+      - PB_URL=http://pocketbase:8090
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - web
+      - pocketbase
+
+volumes:
+  pb_data:
+  caddy_data:

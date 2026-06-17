@@ -1,0 +1,22 @@
+# Dependencies / build output
+node_modules/
+web/.svelte-kit/
+web/build/
+web/.vercel/
+web/.output/
+
+# PocketBase runtime data (never commit) + locally downloaded dev binary
+pocketbase/pb_data/
+pocketbase/pocketbase
+pocketbase/CHANGELOG.md
+pocketbase/LICENSE.md
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Tooling / OS
+.playwright-mcp/
+.DS_Store
+*.log
