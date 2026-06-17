@@ -38,7 +38,7 @@
 <svelte:head><title>{created ? 'Trip created' : 'New trip'} — Rally</title></svelte:head>
 
 <main class="min-h-full bg-sand-100">
-  <div class="mx-auto max-w-[460px] px-4 py-8">
+  <div class="mx-auto max-w-xl px-4 py-8 sm:px-6">
     <a href="/" class="font-body text-[13px] font-extrabold text-coral-600 hover:underline">← Rally</a>
 
     {#if created}

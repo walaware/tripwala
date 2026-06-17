@@ -120,3 +120,22 @@ Search the code for "security boundary" to find the spots that call this out.
 - [ ] Step 10 — polish (mobile, optimistic UI, presence)
 
 Demo trip share token: **`demo-rally-weekend`**
+
+## Roadmap / platform direction (captured, not yet built)
+
+Recorded so we don't lose them; each needs a dedicated planning pass.
+
+- **Multi-trip, not single-trip.** An organizer creates many trips/events;
+  attendees see every trip they're invited to / attending. A **dashboard +
+  calendar view** across trips. The UI should not over-index on one trip. This
+  implies cross-trip identity (ties into the optional accounts / OAuth-linking
+  discussion in `docs/api-layer.md`).
+- **Platforms:** responsive web (now) → installable **PWA** → native **iOS +
+  Android via Capacitor** wrapping the same SvelteKit app, all consuming the same
+  PocketBase instance API. A native app asks for an **instance URL** (self-host)
+  or signs into the cloud.
+- **Open core + paid cloud:** the app stays open-source and self-hostable; a
+  hosted cloud plan (subscription) sells the convenience of not running it.
+  Likely per-tenant instances first, multi-tenant later.
+- **Expenses:** native split/settle-up (design system has `ExpenseRow` /
+  `BalanceSummary`); evaluate reusing Spliit vs. porting its split math.

@@ -4,6 +4,7 @@
   import Chip from '$lib/ui/Chip.svelte';
   import Avatar from '$lib/ui/Avatar.svelte';
   import ClaimRow from '$lib/ui/ClaimRow.svelte';
+  import Checkbox from '$lib/ui/Checkbox.svelte';
   import { fmtDate, fmtDateRange } from '$lib/format.js';
   import { gearEmoji } from '$lib/avatar.js';
 
@@ -34,7 +35,7 @@
 </script>
 
 <div class="min-h-full bg-sand-100 pb-10">
-  <div class="mx-auto max-w-[460px] px-4">
+  <div class="mx-auto w-full max-w-3xl px-4 sm:px-6">
     {#if ownerMode}
       <div class="mt-4 rounded-md bg-sun-200 px-4 py-2.5 text-sm font-bold text-sun-600">
         ✨ Owner mode — editing controls land in the next steps.
@@ -66,7 +67,8 @@
 
     {#if top}{@render top()}{/if}
 
-    <div class="flex flex-col gap-3.5">
+    <div class="flex flex-col gap-3.5 md:grid md:grid-cols-2 md:items-start">
+
       <!-- People -->
       <Card>
         <CardHeader icon="🙌" iconBg="var(--color-coral-200)" title="Who's coming?">
@@ -135,12 +137,12 @@
 
       <!-- Packing -->
       <Card>
-        <CardHeader icon="✅" iconBg="var(--color-leaf-200)" title="What to pack" />
+        <CardHeader icon="🧳" iconBg="var(--color-leaf-200)" title="What to pack" />
         {#if sharedPacking.length}
           <p class="mb-1 font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-500">Shared</p>
           {#each sharedPacking as p, i}
             <div class="flex items-center gap-3 py-2 {i !== 0 ? 'border-t border-sand-200' : ''}">
-              <span class="text-lg">{p.checked ? '✅' : '⬜️'}</span>
+              <Checkbox checked={p.checked} />
               <span class="font-body font-bold text-cocoa-900" class:line-through={p.checked} class:text-cocoa-500={p.checked}>{p.label}</span>
             </div>
           {/each}
@@ -149,7 +151,7 @@
           <p class="mb-1 mt-3 font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-500">Personal</p>
           {#each personalPacking as p, i}
             <div class="flex items-center gap-3 py-2 {i !== 0 ? 'border-t border-sand-200' : ''}">
-              <span class="text-lg">{p.checked ? '✅' : '⬜️'}</span>
+              <Checkbox checked={p.checked} />
               <span class="flex-1 font-body font-bold text-cocoa-900" class:line-through={p.checked} class:text-cocoa-500={p.checked}>{p.label}</span>
               {#if p.participantName}<Avatar name={p.participantName} size={22} />{/if}
             </div>
