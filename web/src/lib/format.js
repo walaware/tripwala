@@ -15,6 +15,28 @@ export function fmtDate(value) {
 }
 
 /**
+ * Full weekday, e.g. "Friday". Returns '' on empty.
+ * @param {string | null | undefined} value
+ */
+export function fmtWeekday(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+}
+
+/**
+ * "Jun 19" — month + day, no weekday. Returns '' on empty.
+ * @param {string | null | undefined} value
+ */
+export function fmtMonthDay(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+/**
  * "Jul 17 – 19, 2026" style range for the trip header.
  * @param {string | null | undefined} start
  * @param {string | null | undefined} end
