@@ -42,6 +42,10 @@
   /** Meal name without the weekday prefix: "Fri Breakfast" → "Breakfast". */
   const mealName = (/** @type {any} */ m) => m.label.split(' ').slice(1).join(' ') || m.label;
 
+  /** @type {Record<string, string>} */
+  const MEAL_EMOJI = { breakfast: '🥞', lunch: '🥪', dinner: '🍲', snack: '🍿', snacks: '🍿', dessert: '🍪' };
+  const mealEmoji = (/** @type {any} */ m) => MEAL_EMOJI[mealName(m).toLowerCase()] ?? '🍴';
+
   function mySignup(/** @type {any} */ m) {
     return m.signups.find((/** @type {any} */ s) => s.participant === currentParticipantId) ?? null;
   }
@@ -100,11 +104,13 @@
 
       {#each day.items as m}
         {@const mine = mySignup(m)}
-        <div class="py-1.5">
-          <div class="flex items-center gap-2">
-            <span class="font-body text-[11.5px] font-extrabold uppercase tracking-wide text-cocoa-500">
-              {mealName(m)}
+        <div class="py-2">
+          <!-- highlighted meal: emoji tile + name -->
+          <div class="flex items-center gap-2.5">
+            <span class="grid h-8 w-8 flex-none place-items-center rounded-md bg-sand-200 text-base">
+              {mealEmoji(m)}
             </span>
+            <span class="font-display text-[15px] font-semibold text-cocoa-900">{mealName(m)}</span>
             {#if currentParticipantId && !mine}
               <button
                 type="button"
@@ -117,39 +123,42 @@
             {/if}
           </div>
 
-          {#if m.signups.length}
-            <ul class="mt-1.5 flex flex-col gap-1.5">
-              {#each m.signups as s}
-                <li class="flex items-center gap-2">
-                  <Avatar name={s.participantName} size={22} />
-                  <span class="shrink-0 font-body text-[13px] font-extrabold text-cocoa-900">
-                    {s.participantName}{#if s.participant === currentParticipantId}<span class="font-bold text-cocoa-400"> (you)</span>{/if}
-                  </span>
-                  {#if s.participant === currentParticipantId}
-                    <input
-                      value={s.dish_note ?? ''}
-                      placeholder="+ add a dish"
-                      maxlength="300"
-                      onblur={(e) => saveNote(s.id, /** @type {HTMLInputElement} */ (e.currentTarget).value)}
-                      class="min-w-0 flex-1 rounded-md bg-sand-100 px-2 py-0.5 font-body text-[13px] font-bold text-cocoa-700 outline-none placeholder:font-bold placeholder:text-cocoa-400 focus:bg-white focus:ring-2 focus:ring-coral-200"
-                    />
-                    <button
-                      type="button"
-                      disabled={busy === m.id}
-                      onclick={() => cancel(m)}
-                      class="shrink-0 font-body text-[12px] font-extrabold text-cocoa-400 hover:text-coral-600"
-                    >
-                      Drop
-                    </button>
-                  {:else if s.dish_note}
-                    <span class="min-w-0 truncate font-body text-[13px] font-bold text-cocoa-500">· {s.dish_note}</span>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
-          {:else}
-            <p class="mt-1 font-body text-[12.5px] font-bold text-cocoa-400">Nobody's on it yet — pitch in!</p>
-          {/if}
+          <!-- helpers underneath, aligned past the tile -->
+          <div class="mt-1.5 pl-[42px]">
+            {#if m.signups.length}
+              <ul class="flex flex-col gap-1.5">
+                {#each m.signups as s}
+                  <li class="flex items-center gap-2">
+                    <Avatar name={s.participantName} size={22} />
+                    <span class="shrink-0 font-body text-[13px] font-extrabold text-cocoa-900">
+                      {s.participantName}{#if s.participant === currentParticipantId}<span class="font-bold text-cocoa-400"> (you)</span>{/if}
+                    </span>
+                    {#if s.participant === currentParticipantId}
+                      <input
+                        value={s.dish_note ?? ''}
+                        placeholder="+ add a dish"
+                        maxlength="300"
+                        onblur={(e) => saveNote(s.id, /** @type {HTMLInputElement} */ (e.currentTarget).value)}
+                        class="min-w-0 flex-1 rounded-md bg-sand-100 px-2 py-0.5 font-body text-[13px] font-bold text-cocoa-700 outline-none placeholder:font-bold placeholder:text-cocoa-400 focus:bg-white focus:ring-2 focus:ring-coral-200"
+                      />
+                      <button
+                        type="button"
+                        disabled={busy === m.id}
+                        onclick={() => cancel(m)}
+                        class="shrink-0 font-body text-[12px] font-extrabold text-cocoa-400 hover:text-coral-600"
+                      >
+                        Drop
+                      </button>
+                    {:else if s.dish_note}
+                      <span class="min-w-0 truncate font-body text-[13px] font-bold text-cocoa-500">· {s.dish_note}</span>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="font-body text-[12.5px] font-bold text-cocoa-400">Nobody's on it yet — pitch in!</p>
+            {/if}
+          </div>
         </div>
       {/each}
     </div>
