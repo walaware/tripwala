@@ -5,7 +5,7 @@
 
 ## Goal
 
-Let Rally be driven **programmatically and by AI tools** (e.g. Claude) without
+Let Rally be driven **programmatically and by AI tools** (any MCP client) without
 duplicating business logic. One typed **service core** is the single source of
 truth for all reads/mutations; both the web app and an **MCP server** consume it.
 

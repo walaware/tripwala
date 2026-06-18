@@ -143,9 +143,9 @@ Captured, not yet built — each needs its own pass:
 ## Built with AI
 
 Rally is a **heavily AI-developed codebase** — most of the code, docs, and
-migrations were written by an LLM coding agent (Claude) under human direction
-and review. We disclose this openly; see [AI_POLICY.md](./AI_POLICY.md) for what
-that means for users and contributors.
+migrations were written by LLM coding agents under human direction and review.
+We disclose this openly; see [AI_POLICY.md](./AI_POLICY.md) for what that means
+for users and contributors.
 
 ## Contributing
 
