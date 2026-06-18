@@ -94,6 +94,15 @@
           💸 Split expenses ↗
         </a>
       {/if}
+      {#if trip.description}
+        <!-- Trip details / directions. Links (Hipcamp, maps, …) live inline in
+             the description. Left-aligned for readability. -->
+        <div
+          class="mt-4 rounded-2xl bg-white p-4 text-left font-body text-[13.5px] leading-relaxed text-cocoa-700 shadow-card [&_a]:font-extrabold [&_a]:text-coral-700 [&_a]:underline [&_a]:underline-offset-2"
+        >
+          {@html trip.description}
+        </div>
+      {/if}
     </header>
 
     {#if top}{@render top()}{/if}
