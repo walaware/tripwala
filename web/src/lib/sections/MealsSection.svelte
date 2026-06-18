@@ -16,10 +16,8 @@
   let { shareToken, meals, currentParticipantId } = $props();
 
   let busy = $state('');
+  let confirmDrop = $state(''); // meal id whose owner-drop is awaiting confirmation
 
-  // Group slots by day so we show "Friday" once with its meals underneath,
-  // instead of repeating "Fri Breakfast / Fri Lunch / …". meals arrive sorted
-  // by sort_order, so insertion order is already chronological.
   /** @param {any[]} list */
   function groupByDay(list) {
     /** @type {Array<{ date: string, items: any[] }>} */
@@ -39,57 +37,43 @@
   }
   const byDay = $derived(groupByDay(meals));
 
-  /** Meal name without the weekday prefix: "Fri Breakfast" → "Breakfast". */
   const mealName = (/** @type {any} */ m) => m.label.split(' ').slice(1).join(' ') || m.label;
 
   /** @type {Record<string, string>} */
   const MEAL_EMOJI = { breakfast: '🥞', lunch: '🥪', dinner: '🍲', snack: '🍿', snacks: '🍿', dessert: '🍪' };
   const mealEmoji = (/** @type {any} */ m) => MEAL_EMOJI[mealName(m).toLowerCase()] ?? '🍴';
 
-  /** What's being made for this meal — the helpers' dish notes, combined. */
-  const dishSummary = (/** @type {any} */ m) =>
-    m.signups
-      .map((/** @type {any} */ s) => (s.dish_note || '').trim())
-      .filter(Boolean)
-      .join(' · ');
+  const iAmOwner = (/** @type {any} */ m) => !!currentParticipantId && m.ownerParticipant === currentParticipantId;
+  const iAmHelper = (/** @type {any} */ m) =>
+    !!currentParticipantId && m.helpers.some((/** @type {any} */ h) => h.participant === currentParticipantId);
 
-  function mySignup(/** @type {any} */ m) {
-    return m.signups.find((/** @type {any} */ s) => s.participant === currentParticipantId) ?? null;
-  }
-
-  /** @param {any} m */
-  async function signUp(m) {
-    if (!currentParticipantId || busy) return;
+  /** @param {any} m @param {Record<string, unknown>} body */
+  async function act(m, body) {
+    if (busy) return;
     busy = m.id;
     try {
-      await tripAction(shareToken, { op: 'meal_signup', mealSlotId: m.id, participantId: currentParticipantId });
+      await tripAction(shareToken, body);
       await invalidateAll();
     } catch (_) {
       /* reconciled */
     } finally {
       busy = '';
+      confirmDrop = '';
     }
   }
 
-  /** @param {any} m */
-  async function cancel(m) {
-    const mine = mySignup(m);
-    if (!mine || busy) return;
-    busy = m.id;
-    try {
-      await tripAction(shareToken, { op: 'meal_cancel', mealSlotId: m.id, participantId: currentParticipantId });
-      await invalidateAll();
-    } catch (_) {
-      /* reconciled */
-    } finally {
-      busy = '';
-    }
-  }
+  const take = (/** @type {any} */ m) =>
+    currentParticipantId && act(m, { op: 'meal_take', mealSlotId: m.id, participantId: currentParticipantId });
+  const help = (/** @type {any} */ m) =>
+    currentParticipantId && act(m, { op: 'meal_help', mealSlotId: m.id, participantId: currentParticipantId });
+  const drop = (/** @type {any} */ m) =>
+    currentParticipantId && act(m, { op: 'meal_drop', mealSlotId: m.id, participantId: currentParticipantId });
 
-  /** @param {string} signupId @param {string} note */
-  async function saveNote(signupId, note) {
+  /** @param {any} m @param {string} dish */
+  async function saveDish(m, dish) {
+    if (!currentParticipantId) return;
     try {
-      await tripAction(shareToken, { op: 'meal_note', signupId, note });
+      await tripAction(shareToken, { op: 'meal_dish', mealSlotId: m.id, participantId: currentParticipantId, dish });
       await invalidateAll();
     } catch (_) {
       /* reconciled */
@@ -110,54 +94,83 @@
       {/if}
 
       {#each day.items as m}
-        {@const mine = mySignup(m)}
+        {@const owner = iAmOwner(m)}
+        {@const helper = iAmHelper(m)}
         <div class="py-2">
-          <!-- highlighted meal: emoji tile + name -->
+          <!-- highlighted meal: emoji tile + name + the dish (owner-editable) -->
           <div class="flex items-center gap-2.5">
             <span class="grid h-8 w-8 flex-none place-items-center rounded-md bg-sand-200 text-base">
               {mealEmoji(m)}
             </span>
             <span class="shrink-0 font-display text-[15px] font-semibold text-cocoa-900">{mealName(m)}</span>
-            {#if dishSummary(m)}
-              <span class="min-w-0 truncate font-body text-[13px] font-bold text-cocoa-500">— {dishSummary(m)}</span>
+
+            {#if owner}
+              <input
+                value={m.dish ?? ''}
+                placeholder="+ add a dish"
+                maxlength="300"
+                onblur={(e) => saveDish(m, /** @type {HTMLInputElement} */ (e.currentTarget).value)}
+                class="min-w-0 flex-1 rounded-md bg-sand-100 px-2 py-0.5 font-body text-[13px] font-bold text-cocoa-700 outline-none placeholder:font-bold placeholder:text-cocoa-400 focus:bg-white focus:ring-2 focus:ring-coral-200"
+              />
+            {:else if m.dish}
+              <span class="min-w-0 truncate font-body text-[13px] font-bold text-cocoa-500">— {m.dish}</span>
             {/if}
-            {#if currentParticipantId && !mine}
+
+            {#if currentParticipantId && !owner && !helper}
               <button
                 type="button"
                 disabled={busy === m.id}
-                onclick={() => signUp(m)}
+                onclick={() => (m.ownerParticipant ? help(m) : take(m))}
                 class="ml-auto shrink-0 rounded-full bg-sun-200 px-3 py-1 font-display text-[12px] font-semibold text-sun-600 transition hover:bg-sun-300 disabled:opacity-50"
               >
-                {busy === m.id ? '…' : m.signups.length ? '+ Help too' : "+ I'll help"}
+                {busy === m.id ? '…' : m.ownerParticipant ? '+ Help out' : "I'll cook this"}
               </button>
             {/if}
           </div>
 
-          <!-- helpers underneath, aligned past the tile -->
+          <!-- owner + helpers, or empty state -->
           <div class="mt-1.5 pl-[42px]">
-            {#if m.signups.length}
+            {#if m.ownerParticipant}
               <ul class="flex flex-col gap-1.5">
-                {#each m.signups as s}
+                <li class="flex items-center gap-2">
+                  <Avatar name={m.ownerName} size={22} />
+                  <span class="shrink-0 font-body text-[13px] font-extrabold text-cocoa-900">
+                    {m.ownerName}{#if owner}<span class="font-bold text-cocoa-400"> (you)</span>{/if}
+                  </span>
+                  <span class="shrink-0 font-body text-[10.5px] font-extrabold uppercase tracking-wide text-coral-600">owner</span>
+                  {#if owner}
+                    {#if confirmDrop === m.id}
+                      <span class="ml-auto flex shrink-0 items-center gap-2">
+                        <span class="font-body text-[12px] font-bold text-cocoa-500">Clear everyone?</span>
+                        <button type="button" onclick={() => drop(m)} class="font-body text-[12px] font-extrabold text-berry-600">Reset</button>
+                        <button type="button" onclick={() => (confirmDrop = '')} class="font-body text-[12px] font-extrabold text-cocoa-400">Cancel</button>
+                      </span>
+                    {:else}
+                      <button
+                        type="button"
+                        onclick={() => (confirmDrop = m.id)}
+                        class="ml-auto shrink-0 font-body text-[12px] font-extrabold text-cocoa-400 hover:text-coral-600"
+                      >
+                        Drop
+                      </button>
+                    {/if}
+                  {/if}
+                </li>
+
+                {#each m.helpers as h}
                   <li class="flex items-center gap-2">
-                    <Avatar name={s.participantName} size={22} />
+                    <Avatar name={h.name} size={22} />
                     <span class="shrink-0 font-body text-[13px] font-extrabold text-cocoa-900">
-                      {s.participantName}{#if s.participant === currentParticipantId}<span class="font-bold text-cocoa-400"> (you)</span>{/if}
+                      {h.name}{#if h.participant === currentParticipantId}<span class="font-bold text-cocoa-400"> (you)</span>{/if}
                     </span>
-                    {#if s.participant === currentParticipantId}
-                      <input
-                        value={s.dish_note ?? ''}
-                        placeholder="+ add a dish"
-                        maxlength="300"
-                        onblur={(e) => saveNote(s.id, /** @type {HTMLInputElement} */ (e.currentTarget).value)}
-                        class="min-w-0 flex-1 rounded-md bg-sand-100 px-2 py-0.5 font-body text-[13px] font-bold text-cocoa-700 outline-none placeholder:font-bold placeholder:text-cocoa-400 focus:bg-white focus:ring-2 focus:ring-coral-200"
-                      />
+                    {#if h.participant === currentParticipantId}
                       <button
                         type="button"
                         disabled={busy === m.id}
-                        onclick={() => cancel(m)}
-                        class="shrink-0 font-body text-[12px] font-extrabold text-cocoa-400 hover:text-coral-600"
+                        onclick={() => drop(m)}
+                        class="ml-auto shrink-0 font-body text-[12px] font-extrabold text-cocoa-400 hover:text-coral-600"
                       >
-                        Drop
+                        Leave
                       </button>
                     {/if}
                   </li>

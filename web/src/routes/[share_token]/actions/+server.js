@@ -105,32 +105,78 @@ export async function POST({ params, request }) {
         break;
       }
 
-      case 'meal_signup': {
+      // Become the owner of a meal nobody's taken yet (optionally with a dish).
+      case 'meal_take': {
         const slot = await inTrip('meal_slots', body.mealSlotId);
         const p = await inTrip('participants', body.participantId);
-        await pb
-          .collection('meal_signups')
-          .create({ meal_slot: slot.id, participant: p.id, dish_note: '' });
+        const owner = await firstOrNull(
+          'meal_signups',
+          pb.filter('meal_slot = {:s} && is_owner = true', { s: slot.id })
+        );
+        if (owner) break; // already owned — no-op
+        // if I'm already a helper, promote me; else create as owner
+        const existing = await firstOrNull(
+          'meal_signups',
+          pb.filter('meal_slot = {:s} && participant = {:p}', { s: slot.id, p: p.id })
+        );
+        const dish = String(body.dish ?? '').slice(0, 300);
+        if (existing) {
+          await pb.collection('meal_signups').update(existing.id, { is_owner: true, dish_note: dish });
+        } else {
+          await pb
+            .collection('meal_signups')
+            .create({ meal_slot: slot.id, participant: p.id, is_owner: true, dish_note: dish });
+        }
         break;
       }
 
-      case 'meal_cancel': {
+      // Join an already-owned meal as a helper.
+      case 'meal_help': {
+        const slot = await inTrip('meal_slots', body.mealSlotId);
+        const p = await inTrip('participants', body.participantId);
+        const existing = await firstOrNull(
+          'meal_signups',
+          pb.filter('meal_slot = {:s} && participant = {:p}', { s: slot.id, p: p.id })
+        );
+        if (!existing) {
+          await pb
+            .collection('meal_signups')
+            .create({ meal_slot: slot.id, participant: p.id, is_owner: false, dish_note: '' });
+        }
+        break;
+      }
+
+      // Owner sets the dish (what's being made).
+      case 'meal_dish': {
         const slot = await inTrip('meal_slots', body.mealSlotId);
         const mine = await firstOrNull(
           'meal_signups',
           pb.filter('meal_slot = {:s} && participant = {:p}', { s: slot.id, p: body.participantId })
         );
-        if (mine) await pb.collection('meal_signups').delete(mine.id);
+        if (mine && mine.is_owner) {
+          await pb
+            .collection('meal_signups')
+            .update(mine.id, { dish_note: String(body.dish ?? '').slice(0, 300) });
+        }
         break;
       }
 
-      case 'meal_note': {
-        const su = await pb.collection('meal_signups').getOne(body.signupId);
-        const slot = await pb.collection('meal_slots').getOne(su.meal_slot);
-        if (slot.trip !== trip.id) throw error(403, 'Not part of this trip');
-        await pb
-          .collection('meal_signups')
-          .update(su.id, { dish_note: String(body.note ?? '').slice(0, 300) });
+      // Leave a meal. If the owner leaves, the meal resets (everyone removed).
+      case 'meal_drop': {
+        const slot = await inTrip('meal_slots', body.mealSlotId);
+        const mine = await firstOrNull(
+          'meal_signups',
+          pb.filter('meal_slot = {:s} && participant = {:p}', { s: slot.id, p: body.participantId })
+        );
+        if (!mine) break;
+        if (mine.is_owner) {
+          const all = await pb
+            .collection('meal_signups')
+            .getFullList({ filter: pb.filter('meal_slot = {:s}', { s: slot.id }) });
+          for (const su of all) await pb.collection('meal_signups').delete(su.id);
+        } else {
+          await pb.collection('meal_signups').delete(mine.id);
+        }
         break;
       }
 

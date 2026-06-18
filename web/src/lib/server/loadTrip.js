@@ -72,22 +72,28 @@ export async function loadTripByShareToken(shareToken) {
     };
   });
 
-  /** @type {Record<string, Array<{id: string, participant: string, participantName: string, dish_note: string}>>} */
+  // Owner + helpers per slot. The owner (is_owner) sets the dish; others help.
+  /** @type {Record<string, any[]>} */
   const signupsBySlot = {};
   for (const s of mealSignups) {
-    (signupsBySlot[s.meal_slot] ??= []).push({
-      id: s.id,
-      participant: s.participant,
-      participantName: nameById[s.participant] ?? 'Someone',
-      dish_note: s.dish_note
-    });
+    (signupsBySlot[s.meal_slot] ??= []).push(s);
   }
-  const meals = mealSlots.map((m) => ({
-    id: m.id,
-    label: m.label,
-    date: m.date,
-    signups: signupsBySlot[m.id] ?? []
-  }));
+  const meals = mealSlots.map((m) => {
+    const ss = signupsBySlot[m.id] ?? [];
+    const ownerRec = ss.find((s) => s.is_owner) ?? null;
+    const helpers = ss
+      .filter((s) => !s.is_owner)
+      .map((s) => ({ participant: s.participant, name: nameById[s.participant] ?? 'Someone' }));
+    return {
+      id: m.id,
+      label: m.label,
+      date: m.date,
+      ownerParticipant: ownerRec ? ownerRec.participant : null,
+      ownerName: ownerRec ? (nameById[ownerRec.participant] ?? 'Someone') : null,
+      dish: ownerRec ? (ownerRec.dish_note || '') : '',
+      helpers
+    };
+  });
 
   return {
     trip: {
