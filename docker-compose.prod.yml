@@ -3,11 +3,10 @@
 #   op run -- docker compose -f docker-compose.prod.yml pull
 #   op run -- docker compose -f docker-compose.prod.yml up -d
 #
-# Put a tunnel/reverse proxy in front of the published Caddy port. On the
-# homelab that's a Cloudflare Tunnel routing tripwala.<your-domain> →
-# http://<host>:8080 (the cloudflared config + tunnel token live in the private
-# infra, not here). Set IMAGE_OWNER/IMAGE_TAG + PB_SUPERUSER_* in
-# .env (op:// URIs in prod).
+# Put a tunnel/reverse proxy in front of the published Caddy port — e.g. a
+# Cloudflare Tunnel routing tripwala.<your-domain> → http://<host>:8080 (manage
+# the tunnel config wherever you keep your infra). Set IMAGE_OWNER/IMAGE_TAG +
+# PB_SUPERUSER_* in .env (op:// URIs in prod).
 
 name: tripwala
 
