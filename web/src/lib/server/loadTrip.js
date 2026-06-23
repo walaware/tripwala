@@ -30,7 +30,7 @@ export async function loadTripByShareToken(shareToken) {
 
   const [participants, gearItems, gearClaims, mealSlots, mealSignups, packingItems] =
     await Promise.all([
-      pb.collection('participants').getFullList({ filter: tripFilter, sort: 'created' }),
+      pb.collection('participants').getFullList({ filter: tripFilter, sort: 'created', expand: 'user' }),
       pb.collection('gear_items').getFullList({ filter: tripFilter, sort: 'created' }),
       pb
         .collection('gear_claims')
@@ -111,7 +111,8 @@ export async function loadTripByShareToken(shareToken) {
         id: p.id,
         display_name: p.display_name,
         rsvp_status: p.rsvp_status,
-        lean: p.lean || 0
+        lean: p.lean || 0,
+        avatar: p.expand?.user?.avatar || undefined // Google photo if the member has an account
       }))
       .sort((a, b) => a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })),
     gear,

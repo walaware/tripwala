@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@walaware/design':
-        specifier: github:walaware/design#v0.2.1
-        version: https://codeload.github.com/walaware/design/tar.gz/e4d1cbf1cbe9d26cd923c115f98ea474c0dc3dd2(svelte@5.56.3)(tailwindcss@4.3.1)
+        specifier: github:walaware/design#v0.2.3
+        version: https://codeload.github.com/walaware/design/tar.gz/19d814600525ae2a759f64c86a7b1a5962691be7(svelte@5.56.3)(tailwindcss@4.3.1)
       pocketbase:
         specifier: ^0.26.2
         version: 0.26.9
@@ -537,9 +537,9 @@ packages:
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
-  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/e4d1cbf1cbe9d26cd923c115f98ea474c0dc3dd2':
-    resolution: {tarball: https://codeload.github.com/walaware/design/tar.gz/e4d1cbf1cbe9d26cd923c115f98ea474c0dc3dd2}
-    version: 0.2.1
+  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/19d814600525ae2a759f64c86a7b1a5962691be7':
+    resolution: {tarball: https://codeload.github.com/walaware/design/tar.gz/19d814600525ae2a759f64c86a7b1a5962691be7}
+    version: 0.2.3
     peerDependencies:
       svelte: ^5.0.0
       tailwindcss: ^4.0.0
@@ -1245,7 +1245,7 @@ snapshots:
 
   '@types/trusted-types@2.0.7': {}
 
-  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/e4d1cbf1cbe9d26cd923c115f98ea474c0dc3dd2(svelte@5.56.3)(tailwindcss@4.3.1)':
+  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/19d814600525ae2a759f64c86a7b1a5962691be7(svelte@5.56.3)(tailwindcss@4.3.1)':
     dependencies:
       svelte: 5.56.3
     optionalDependencies:

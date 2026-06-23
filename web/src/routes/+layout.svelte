@@ -28,7 +28,13 @@
   /** @type {HTMLFormElement | undefined} */
   let logoutForm = $state();
   const account = $derived(
-    user ? { name: user.name || user.email, onSignOut: () => logoutForm?.requestSubmit() } : null
+    user
+      ? {
+          name: user.name || user.email,
+          avatar: user.avatar || undefined, // Google profile photo (PB url field); falls back to initial
+          onSignOut: () => logoutForm?.requestSubmit()
+        }
+      : null
   );
 
   // Settings affordance only inside a trip (where settings actually lives).

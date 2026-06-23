@@ -10,7 +10,7 @@
   /**
    * @type {{
    *   shareToken: string,
-   *   participants: Array<{ id: string, display_name: string, rsvp_status: string | null, lean: number }>,
+   *   participants: Array<{ id: string, display_name: string, rsvp_status: string | null, lean: number, avatar?: string }>,
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean
    * }}
@@ -78,7 +78,7 @@
   <div class="mb-3.5 flex flex-col gap-2">
     {#each participants as p}
       <div class="flex items-center gap-2.5" class:opacity-50={p.rsvp_status === 'out'}>
-        <Avatar name={p.display_name} size={30} />
+        <Avatar name={p.display_name} src={p.avatar} size={30} />
         <span class="font-body text-sm font-extrabold text-cocoa-900">
           {p.display_name}{#if p.id === currentParticipantId}<span class="font-bold text-cocoa-500"> (you)</span>{/if}
         </span>
