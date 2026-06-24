@@ -1,8 +1,8 @@
 <script>
   import { invalidateAll } from '$app/navigation';
   import { Card } from '@walaware/design';
-  import { CardHeader } from '@walaware/design';
   import { Button } from '@walaware/design';
+  import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { planAction } from '$lib/planClient.js';
   import { fmtDateRange } from '$lib/format.js';
 
@@ -113,8 +113,8 @@
   const voteBtn = 'rounded-full px-2.5 py-1 font-body text-xs font-extrabold transition';
 </script>
 
+<SectionHeader emoji="📅" title="When can everyone go?" />
 <Card>
-  <CardHeader icon="🗓️" title="When can everyone go?" />
 
   <!-- Owner-proposed candidate ranges -->
   {#if dateOptions.length}

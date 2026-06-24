@@ -1,10 +1,10 @@
 <script>
   import { invalidateAll } from '$app/navigation';
   import { Card } from '@walaware/design';
-  import { CardHeader } from '@walaware/design';
   import { Button } from '@walaware/design';
   import { TextField } from '@walaware/design';
   import { EmptyState } from '@walaware/design';
+  import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { planAction } from '$lib/planClient.js';
 
   /**
@@ -59,8 +59,8 @@
   }
 </script>
 
+<SectionHeader emoji="📍" title="Where should we go?" />
 <Card>
-  <CardHeader icon="📍" iconBg="var(--color-berry-200)" title="Where should we go?" />
 
   {#if locations.length}
     <div class="flex flex-col gap-2">

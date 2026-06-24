@@ -77,12 +77,19 @@ export async function loadPlanning(pb, trip, myParticipantId) {
     }))
     .sort((a, b) => b.votes - a.votes);
 
+  // Account-linked members + the current viewer (for the inline Trip-settings section).
+  const meRec = participants.find((p) => p.id === myParticipantId);
   return {
     participants: participants.map((p) => ({
       id: p.id,
       display_name: p.display_name,
       role: p.role || 'guest'
     })),
+    members: participants
+      .filter((p) => p.user)
+      .map((p) => ({ id: p.id, display_name: p.display_name, role: p.role || 'guest' }))
+      .sort((a, b) => (a.role === b.role ? 0 : a.role === 'organizer' ? -1 : 1)),
+    me: meRec ? { name: meRec.display_name, notify: meRec.notify !== false } : null,
     dateOptions: options,
     availability: { byDay, mine, memberCount: participants.length },
     locations

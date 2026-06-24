@@ -50,10 +50,15 @@ export async function load({ params, locals }) {
         id: trip.id,
         name: trip.name,
         share_token: trip.share_token,
+        owner_token: trip.owner_token || '',
         location: trip.location || '',
         description: trip.description || '',
         trip_type: trip.trip_type || '',
-        status: 'planning'
+        start_date: trip.start_date || '',
+        end_date: trip.end_date || '',
+        expense_link: trip.expense_link || '',
+        status: 'planning',
+        hidden_sections: []
       },
       membership: membershipOut,
       isOrganizer,

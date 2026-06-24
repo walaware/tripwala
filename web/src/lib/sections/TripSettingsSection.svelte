@@ -12,10 +12,11 @@
    *   me?: { name: string, notify?: boolean } | null,
    *   trip: any,
    *   members?: Array<{ id: string, display_name: string, role: string }>,
-   *   currentParticipantId?: string | null
+   *   currentParticipantId?: string | null,
+   *   showSections?: boolean
    * }}
    */
-  let { shareToken, ownerMode = false, me = null, trip, members = [], currentParticipantId = null } = $props();
+  let { shareToken, ownerMode = false, me = null, trip, members = [], currentParticipantId = null, showSections = true } = $props();
 
   const TYPES = [
     ['camping', '🏕️ Camping'], ['backpacking', '🎒 Backpacking'], ['road_trip', '🚗 Road trip'],
@@ -183,6 +184,7 @@
     </Card>
 
     <!-- Organizer: section visibility -->
+    {#if showSections}
     <Card>
       <div class="mb-1 font-display text-[15px] font-bold text-text-strong">Sections</div>
       <div class="mb-2.5 font-body text-[12.5px] font-bold text-text-muted">Hide a section for everyone on the trip. Restore it any time.</div>
@@ -198,6 +200,8 @@
         </div>
       {/each}
     </Card>
+
+    {/if}
 
     <!-- Organizer: members -->
     <Card>
