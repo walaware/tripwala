@@ -11,24 +11,3 @@
  */
 @import 'tailwindcss';
 @import '@walaware/design/theme.css';
-
-/* AppShell scrollSpy drives `.content.scrollTo`, so `.content` must be the
- * scroll container. The shell root uses min-height:100vh, so on a tall
- * contextual page (the trip page) it grows and the WINDOW scrolls instead —
- * leaving scrollSpy click-to-scroll + active tracking dead. Bind the shell to
- * the viewport so `.content` is the real scroller. (Upstream fix candidate for
- * @walaware/design — see walaware-design-improvements.) */
-.wala-appshell {
-  height: 100dvh;
-}
-.wala-appshell .main,
-.wala-appshell .content {
-  min-height: 0;
-}
-
-/* The kit's `sun` Chip is amber-on-amber (sun-200 bg / sun-600 fg) — too low
- * contrast for labels like "In planning" / "N maybe". Darken the foreground.
- * (Upstream candidate for @walaware/design's Chip sun tone.) */
-.wala-chip.t-sun {
-  --chip-fg: var(--color-cocoa-700) !important;
-}

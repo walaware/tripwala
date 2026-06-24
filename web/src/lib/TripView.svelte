@@ -75,19 +75,12 @@
   const visibleNav = $derived(SECTION_NAV.filter((n) => !hidden.has(n.key)));
 
   // Publish the section nav + trip name up to the layout's AppShell, flipping it
-  // into contextual mode. Reassign only when the title or the visible-section set
-  // changes — the 4s live-poll re-derives `trip` each tick, and churning
-  // `shell.trip` identity makes the shell's scrollSpy reset scroll every poll.
+  // into contextual mode. The kit (≥v0.3.2) diffs scrollSpy by section-set content,
+  // so re-publishing on the 4s poll is harmless. Cleared on unmount.
   const shell = useShell();
-  let publishedKey = '';
   $effect(() => {
-    const key = trip.name + '|' + visibleNav.map((n) => n.key).join(',');
-    if (key !== publishedKey) {
-      publishedKey = key;
-      shell.trip = { title: trip.name, nav: visibleNav };
-    }
+    shell.trip = { title: trip.name, nav: visibleNav };
   });
-  // Clear on unmount only — a separate effect so the poll's re-runs don't null it.
   $effect(() => () => {
     shell.trip = null;
   });
