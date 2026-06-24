@@ -2,6 +2,8 @@
 // dashboard. Membership is a participant row linked to the user; we attach their
 // role and a couple of headline counts per trip.
 
+import { avatarUrl } from './userAvatar.js';
+
 /**
  * @typedef {Object} DashTrip
  * @property {string} id
@@ -72,7 +74,7 @@ export async function loadUserTrips(pb, userId) {
 
   const [trips, participants] = await Promise.all([
     pb.collection('trips').getFullList({ filter: orFilter('id') }),
-    pb.collection('participants').getFullList({ filter: orFilter('trip') })
+    pb.collection('participants').getFullList({ filter: orFilter('trip'), expand: 'user' })
   ]);
 
   /** @type {Record<string, { members: number, going: number, maybe: number }>} */
@@ -85,7 +87,7 @@ export async function loadUserTrips(pb, userId) {
     if (p.rsvp_status === 'going') s.going++;
     else if (p.rsvp_status === 'maybe') s.maybe++;
     const crew = (crewByTrip[p.trip] ??= []);
-    const entry = { name: p.display_name, avatar: p.avatar || undefined };
+    const entry = { name: p.display_name, avatar: avatarUrl(p.expand?.user) };
     // Going members lead the avatar stack; everyone else trails.
     if (p.rsvp_status === 'going') crew.unshift(entry);
     else crew.push(entry);

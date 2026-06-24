@@ -2,6 +2,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { dev } from '$app/environment';
 import { rateLimit, clientIp } from '$lib/server/rateLimit.js';
 import { newClient } from '$lib/server/pocketbase.js';
+import { avatarUrl } from '$lib/server/userAvatar.js';
 
 const AUTH_COOKIE = 'pb_auth';
 
@@ -40,7 +41,7 @@ const handleAuth = async ({ event, resolve }) => {
   event.locals.pb = pb;
   const rec = pb.authStore.record;
   event.locals.user = rec
-    ? { id: rec.id, email: rec.email, name: rec.name ?? '', avatar: rec.avatar ?? '' }
+    ? { id: rec.id, email: rec.email, name: rec.name ?? '', avatar: avatarUrl(rec) ?? '' }
     : null;
 
   const response = await resolve(event);

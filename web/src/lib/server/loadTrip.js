@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { superuserPb } from './pocketbase.js';
 import { settleUp } from './settle.js';
+import { avatarUrl } from './userAvatar.js';
 
 /**
  * Load a trip and all of its related sections by share token.
@@ -146,7 +147,7 @@ export async function loadTripByShareToken(shareToken) {
         rsvp_status: p.rsvp_status,
         lean: p.lean || 0,
         notify: p.notify !== false, // per-member trip-notification preference (default on)
-        avatar: p.expand?.user?.avatar || undefined // Google photo if the member has an account
+        avatar: avatarUrl(p.expand?.user) // Google photo if the member has an account
       }))
       .sort((a, b) => a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })),
     gear,
