@@ -25,7 +25,7 @@
     "vite": "^6.2.5"
   },
   "dependencies": {
-    "@walaware/design": "github:walaware/design#v0.2.3",
+    "@walaware/design": "github:walaware/design#v0.3.0",
     "pocketbase": "^0.26.2"
   }
 }
