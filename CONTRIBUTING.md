@@ -1,65 +1,41 @@
 # Contributing to tripwala
 
-Thanks for wanting to help! tripwala is a small, friendly codebase and we'd love
-your contributions — bug fixes, features, docs, or just ideas.
+tripwala follows the **[walaware contributing guide](https://github.com/walaware/.github/blob/main/CONTRIBUTING.md)** —
+read that first for the shared ground rules (be kind, AI-assisted work is welcome,
+small focused PRs, migrations are the source of truth, writes go through the
+server, `pnpm check` + `pnpm build` before a PR). This page only adds what's
+specific to tripwala.
 
-## Ground rules
+## tripwala's core principle
 
-- **Be kind.** See the [Code of Conduct](https://github.com/walaware/.github/blob/main/CODE_OF_CONDUCT.md).
-- **AI-assisted work is welcome.** tripwala is itself heavily AI-developed (see the
-  [AI policy](https://github.com/walaware/.github/blob/main/AI_POLICY.md)). Use whatever tools you like — but *you* own your
-  PR: understand it, test it, and review it before submitting.
-- **Keep it invite-first.** tripwala's whole point is *one link, private to the
-  people you invite*. Guests sign in (Google or email) to join, and only members
-  see the trip — features should preserve that shared-link, members-only model.
-- **Mobile-first.** Most people open trip links on a phone. Design for that, let
-  it scale up.
-- **Small, focused PRs.** One concern per PR. A clear title and a short "why".
+**One link, private to the people you invite.** Guests sign in (Google or email)
+to join, and only members see the trip — features must preserve that
+shared-link, members-only model.
+
+**Mobile-first.** Most people open trip links on a phone. Design for that, let it
+scale up.
 
 ## Getting set up
 
-You need [Node 22+](https://nodejs.org), [pnpm](https://pnpm.io), and the
-[PocketBase](https://pocketbase.io) binary (or Docker).
+The default loop runs **`web` natively for hot-reload** with PocketBase in docker
+(see the org [conventions](https://github.com/walaware/.github/blob/main/docs/conventions.md#local-development)):
 
 ```bash
-# 1. Backend — PocketBase (migrations + a seed trip auto-apply on first serve)
-cd pocketbase
-# download the pinned binary (see README), then:
-./pocketbase serve --http=127.0.0.1:8090
-# create a local superuser the dev server authenticates as:
-./pocketbase superuser upsert admin@tripwala.local tripwalaadmin123
-
-# 2. Frontend — SvelteKit
-cd ../web
-pnpm install
-pnpm dev    # http://localhost:5173/demo-tripwala-weekend
+cp .env.example .env          # set PB_SUPERUSER_PASSWORD
+docker compose -f compose.yml -f compose.dev.yml up -d pocketbase
+cd web && pnpm install && pnpm dev      # http://localhost:5173/demo-tripwala-weekend
 ```
 
-Or run the whole stack with `docker compose up --build` (see the README).
+vite proxies `/api` + `/_` to PocketBase, so the browser stays same-origin.
+tripwala's dev ports are vite **5173** / PocketBase **8090**; Google sign-in needs
+`http://localhost:5173/auth/callback` registered in the OAuth client (use
+`localhost`, never `127.0.0.1`). Want sample data? `cd web && pnpm seed:dev`
+(idempotent).
 
-## Before you open a PR
-
-```bash
-cd web
-pnpm check    # svelte-check / type check — must be clean
-pnpm build    # must succeed
-```
-
-- Match the surrounding code style (Prettier-formatted, JSDoc types in `.js`,
-  Svelte 5 runes).
-- Touching data? Add a PocketBase migration in `pocketbase/pb_migrations/` rather
-  than editing the DB by hand — migrations are the source of truth.
-- Touching writes? They go through the server (`/[share_token]/actions`), never
-  the browser→PocketBase directly. See the **Security model** in the README.
-
-## Architecture in one breath
-
-SvelteKit (Svelte 5 + Tailwind v4) talks to PocketBase. The browser never hits
-PocketBase directly — reads come through the page `load()`, writes through a
-single server endpoint that scopes everything to the trip's share token. The
-visual language is the **Campfire** design system (`web/src/lib/ui/`).
+To validate the production-parity build, run the full single-origin stack:
+`docker compose up --build` → **http://localhost:8080** (admin UI at `/_/`).
 
 ## Reporting bugs / requesting features
 
-Open an issue using the templates. For bugs, include steps to reproduce and what
-you expected. For features, tell us the *use case* — tripwala grows from real trips.
+Open an issue using the templates — for features, tell us the *use case*. tripwala
+grows from real trips.

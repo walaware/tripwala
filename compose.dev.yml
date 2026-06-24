@@ -1,0 +1,17 @@
+# Dev override — the default local loop: PocketBase in docker, `web` native (HMR).
+#
+# The base compose keeps PocketBase unpublished (Caddy is the only entry point).
+# This override publishes PocketBase's 8090 to the host so a native `vite dev`
+# can proxy /api + /_ to it (see web/vite.config.js). Prod parity is unaffected:
+# `docker compose up --build` (no -f) still runs the single-origin stack on :8080.
+#
+#   docker compose -f compose.yml -f compose.dev.yml up -d pocketbase
+#   cd web && pnpm dev          # http://localhost:5173  (HMR)
+#
+# Google sign-in needs http://localhost:5173/auth/callback registered (use
+# `localhost`, never 127.0.0.1). See walaware conventions → Local development.
+
+services:
+  pocketbase:
+    ports:
+      - "127.0.0.1:8090:8090"

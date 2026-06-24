@@ -69,29 +69,29 @@ PocketBase admin UI is at `/_/` (superuser is auto-created from your `.env`).
 
 ## Local development
 
-Node 22+, pnpm, and the PocketBase binary.
+The default loop runs **`web` natively for hot-module reload**, with PocketBase in
+docker — `vite dev` proxies `/api` + `/_` to it, so the browser stays same-origin
+(Node 22+ and pnpm required):
 
 ```bash
-# 1) PocketBase (migrations + a seed trip auto-apply on first serve)
-cd pocketbase
-curl -sL -o pb.zip "https://github.com/pocketbase/pocketbase/releases/download/v0.39.4/pocketbase_0.39.4_$(uname -s | tr A-Z a-z)_$([ "$(uname -m)" = arm64 ] && echo arm64 || echo amd64).zip"
-unzip -o pb.zip pocketbase && rm pb.zip
-./pocketbase serve --http=127.0.0.1:8090
-./pocketbase superuser upsert admin@tripwala.local tripwalaadmin123   # in another shell
-
-# 2) Web
-cd ../web && pnpm install && pnpm dev
+cp .env.example .env
+docker compose -f compose.yml -f compose.dev.yml up -d pocketbase
+cd web && pnpm install && pnpm dev
 # http://localhost:5173/demo-tripwala-weekend
 ```
 
-Vite proxies `/api` and `/_` to PocketBase; the SvelteKit server talks to it
-directly. Before a PR: `pnpm check` and `pnpm build`. See
-[CONTRIBUTING.md](./CONTRIBUTING.md).
+tripwala's dev ports are vite **5173** / PocketBase **8090**. Google sign-in needs
+`http://localhost:5173/auth/callback` registered in the OAuth client (use
+`localhost`, never `127.0.0.1` — Google treats them as different origins). Before a
+PR: `pnpm check` and `pnpm build`. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 Want more sample data? `cd web && pnpm seed:dev` adds a few varied trips
 (confirmed / planning / past) to your signed-in account — or to a
 `demo@tripwala.local` / `demotripwala123` login if no one's signed in yet.
 It's idempotent, so it's safe to re-run.
+
+To validate the production-parity build, run the full single-origin stack with
+`docker compose up --build` (→ the [Quick start](#quick-start-docker) on `:8080`).
 
 ## Secrets & configuration
 
@@ -116,8 +116,8 @@ Pushes to `main` build `tripwala-web` and `tripwala-pocketbase` images and publi
 to GHCR (`.github/workflows/docker.yml`). On your server, pull and run:
 
 ```bash
-op run -- docker compose -f docker-compose.prod.yml pull
-op run -- docker compose -f docker-compose.prod.yml up -d
+op run -- docker compose -f compose.prod.yml pull
+op run -- docker compose -f compose.prod.yml up -d
 ```
 
 Front the published Caddy port (`:8080`) with your reverse proxy or a Cloudflare

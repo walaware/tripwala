@@ -1,5 +1,5 @@
 # Pinned PocketBase build. Migrations in pb_migrations/ apply automatically on
-# `serve`. pb_data is a mounted volume (see docker-compose.yml) so it persists.
+# `serve`. pb_data is a mounted volume (see compose.yml) so it persists.
 FROM alpine:3.20
 
 ARG PB_VERSION=0.39.4

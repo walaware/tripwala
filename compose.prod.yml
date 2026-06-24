@@ -1,7 +1,7 @@
 # tripwala — production stack (pulls prebuilt images from GHCR; no local build).
 #
-#   op run -- docker compose -f docker-compose.prod.yml pull
-#   op run -- docker compose -f docker-compose.prod.yml up -d
+#   op run -- docker compose -f compose.prod.yml pull
+#   op run -- docker compose -f compose.prod.yml up -d
 #
 # Put a tunnel/reverse proxy in front of the published Caddy port — e.g. a
 # Cloudflare Tunnel routing tripwala.<your-domain> → http://<host>:8080 (manage
