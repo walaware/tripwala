@@ -41,8 +41,8 @@
     {:else if trips}
       {#each [{ items: trips.current, label: 'Happening now' }, { items: trips.upcoming, label: 'Upcoming' }, { items: trips.past, label: 'Past' }] as section}
         {#if section.items.length}
-          <section class="mt-7">
-            <h2 class="mb-2.5 font-display text-sm font-extrabold uppercase tracking-wide text-text-muted">
+          <section class="mt-8">
+            <h2 class="mb-3.5 font-display text-[13px] font-extrabold uppercase tracking-wider text-text-muted">
               {section.label}
             </h2>
             <div class="flex flex-col gap-3 sm:grid sm:grid-cols-2">
