@@ -364,8 +364,19 @@ export async function POST({ params, request, locals, url }) {
           end_date: end ? `${end} 00:00:00.000Z` : '',
           description: descHtml,
           expense_link,
-          min_nights: minNights
+          min_nights: minNights,
+          emergency_info: t(body.emergency_info).slice(0, 2000)
         });
+        break;
+      }
+
+      // Set my own arrival status (or, for an organizer, someone else's). Drives
+      // the live check-in row in Who's coming. '' clears it.
+      case 'set_arrival': {
+        const p = await targetParticipant();
+        const v = String(body.arrival ?? '');
+        const arrival = ['not_left', 'en_route', 'arrived'].includes(v) ? v : '';
+        await pb.collection('participants').update(p.id, { arrival });
         break;
       }
 

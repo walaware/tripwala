@@ -5,6 +5,7 @@ import { getMembership, joinTrip, listOrphans, listPending, claimParticipant } f
 import { isMailConfigured } from '$lib/server/mailer.js';
 import { tripTeaser } from '$lib/server/teaser.js';
 import { loadPlanning } from '$lib/server/planning.js';
+import { cloneTrip } from '$lib/server/cloneTrip.js';
 
 /**
  * Resolve a trip row by share token, or throw the right HTTP error.
@@ -87,6 +88,7 @@ export async function load({ params, locals }) {
         owner_token: trip.owner_token || '',
         location: trip.location || '',
         description: trip.description || '',
+        emergency_info: trip.emergency_info || '',
         trip_type: trip.trip_type || '',
         start_date: trip.start_date || '',
         end_date: trip.end_date || '',
@@ -172,5 +174,24 @@ export const actions = {
       return fail(400, { claimError: e?.message || 'Could not claim that name.' });
     }
     return { claimed: true };
+  },
+
+  // Clone this trip's scaffolding into a fresh planning-stage trip you own, then
+  // land on it. Any member may clone (it creates their own new trip).
+  clone: async ({ params, locals }) => {
+    if (!locals.user) {
+      throw redirect(303, `/login?next=${encodeURIComponent('/' + params.share_token)}`);
+    }
+    const pb = await superuserPb();
+    const trip = await fetchTrip(pb, params.share_token);
+    const me = await getMembership(pb, trip.id, locals.user.id);
+    if (!me || me.status === 'pending') return fail(403, { cloneError: 'Join this trip before cloning it.' });
+    let token;
+    try {
+      token = await cloneTrip(pb, trip, locals.user, joinTrip);
+    } catch (/** @type {any} */ e) {
+      return fail(502, { cloneError: 'Could not clone the trip — please try again.' });
+    }
+    throw redirect(303, `/${token}`);
   }
 };

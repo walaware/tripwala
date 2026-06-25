@@ -154,6 +154,7 @@ export async function loadTripByShareToken(shareToken) {
       start_date: trip.start_date,
       end_date: trip.end_date,
       description: trip.description,
+      emergency_info: trip.emergency_info || '',
       expense_link: trip.expense_link,
       share_token: trip.share_token,
       owner_token: trip.owner_token || '',
@@ -177,6 +178,7 @@ export async function loadTripByShareToken(shareToken) {
         lean: p.lean || 0,
         notify: p.notify !== false, // per-member trip-notification preference (default on)
         dietary: p.dietary || '', // allergies / preferences, shown to cooks
+        arrival: p.arrival || '', // live check-in: '' | not_left | en_route | arrived
         avatar: avatarUrl(p.expand?.user) // Google photo if the member has an account
       }))
       .sort((a, b) => a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })),

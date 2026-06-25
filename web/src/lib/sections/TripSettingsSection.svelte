@@ -1,5 +1,6 @@
 <script>
   import { goto, invalidateAll } from '$app/navigation';
+  import { enhance } from '$app/forms';
   import { page } from '$app/state';
   import { tripAction } from '$lib/tripClient.js';
   import { Card, Button, Avatar, DateField } from '@walaware/design';
@@ -45,10 +46,10 @@
   const ymd = (d) => (d || '').slice(0, 10);
 
   // Details form state (organizer). Seeded from the trip; re-seed if it changes.
-  let form = $state({ name: '', trip_type: '', location: '', start_date: '', end_date: '', description: '', expense_link: '', min_nights: 0 });
+  let form = $state({ name: '', trip_type: '', location: '', start_date: '', end_date: '', description: '', emergency_info: '', expense_link: '', min_nights: 0 });
   let seeded = '';
   $effect(() => {
-    const sig = `${trip.name}|${trip.start_date}|${trip.description}|${trip.min_nights}`;
+    const sig = `${trip.name}|${trip.start_date}|${trip.description}|${trip.emergency_info}|${trip.min_nights}`;
     if (sig !== seeded) {
       seeded = sig;
       form = {
@@ -58,6 +59,7 @@
         start_date: ymd(trip.start_date),
         end_date: ymd(trip.end_date),
         description: descToText(trip.description),
+        emergency_info: trip.emergency_info || '',
         expense_link: trip.expense_link || '',
         min_nights: trip.min_nights || 0
       };
@@ -66,6 +68,7 @@
 
   let busy = $state('');
   let savedFlash = $state(false);
+  let cloning = $state(false);
   /** @param {string} op @param {Record<string, unknown>} payload @param {string} [tag] */
   async function act(op, payload = {}, tag = op) {
     if (busy) return;
@@ -177,6 +180,28 @@
       </div>
       <Button variant="ghost" size="sm" disabled={busy === 'leave'} onclick={leave}>Leave</Button>
     </div>
+    <!-- Clone: copy this trip's gear/packing/meals into a new planning trip you own. -->
+    <form
+      method="POST"
+      action="?/clone"
+      use:enhance={() => {
+        cloning = true;
+        return async ({ update }) => {
+          await update();
+          cloning = false;
+        };
+      }}
+      class="flex items-center justify-between gap-3 border-t border-sand-200 pt-3.5"
+    >
+      <div class="flex items-center gap-3">
+        <span class="w-6 text-center text-[18px]">📋</span>
+        <div>
+          <div class="font-body text-[14.5px] font-extrabold text-text-strong">Clone this trip</div>
+          <div class="font-body text-[12.5px] font-bold text-text-muted">Copy the gear, packing &amp; meals into a new trip</div>
+        </div>
+      </div>
+      <Button type="submit" variant="soft" size="sm" disabled={cloning}>{cloning ? 'Cloning…' : 'Make a copy'}</Button>
+    </form>
   {/if}
 
   <!-- Invite link — guests see it only when the organizer allows sharing. -->
@@ -285,6 +310,11 @@
         <div>
           <label class={labelClass} for="ts-desc">The plan</label>
           <textarea id="ts-desc" bind:value={form.description} rows="3" maxlength="5000" class={inputClass}></textarea>
+        </div>
+        <div>
+          <label class={labelClass} for="ts-emergency">🚨 Emergency info</label>
+          <textarea id="ts-emergency" bind:value={form.emergency_info} rows="3" maxlength="2000" placeholder="Nearest hospital, ranger/park station, emergency contacts…" class={inputClass}></textarea>
+          <p class="mt-1 font-body text-[12px] font-bold text-cocoa-400">Shown to everyone as a Safety card — handy for backcountry trips.</p>
         </div>
         <div>
           <label class={labelClass} for="ts-exp">Expense-split link</label>

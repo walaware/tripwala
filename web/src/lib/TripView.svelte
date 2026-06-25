@@ -8,6 +8,7 @@
   import GearSection from '$lib/sections/GearSection.svelte';
   import MealsSection from '$lib/sections/MealsSection.svelte';
   import WrappedSection from '$lib/sections/WrappedSection.svelte';
+  import SafetySection from '$lib/sections/SafetySection.svelte';
   import PackingSection from '$lib/sections/PackingSection.svelte';
   import ExpensesSection from '$lib/sections/ExpensesSection.svelte';
   import TripSettingsSection from '$lib/sections/TripSettingsSection.svelte';
@@ -93,10 +94,18 @@
   // are never hideable). Drives both the nav and which `<section>`s render.
   const hidden = $derived(new Set(trip.hidden_sections ?? []));
   const isHidden = (/** @type {string} */ key) => hidden.has(key);
-  // On a wrapped trip, lead the nav with the recap.
-  const fullNav = $derived(
-    isPast ? [{ key: 'wrapped', label: 'Wrapped', icon: '🎉', href: '#wrapped' }, ...SECTION_NAV] : SECTION_NAV
-  );
+  // A Safety card appears (just after Overview) only when the organizer filled in
+  // emergency info; a wrapped trip leads the nav with the recap.
+  const hasSafety = $derived(!!(trip.emergency_info || '').trim());
+  const fullNav = $derived.by(() => {
+    let nav = [...SECTION_NAV];
+    if (hasSafety) {
+      const i = nav.findIndex((n) => n.key === 'overview');
+      nav.splice(i + 1, 0, { key: 'safety', label: 'Safety', icon: '🚨', href: '#safety' });
+    }
+    if (isPast) nav = [{ key: 'wrapped', label: 'Wrapped', icon: '🎉', href: '#wrapped' }, ...nav];
+    return nav;
+  });
   const visibleNav = $derived(fullNav.filter((n) => !hidden.has(n.key)));
 
   // Organizer hides a section straight from its header (restore from Trip
@@ -221,6 +230,11 @@
   <section id="overview" class="trip-section">
     <OverviewSection {trip} {participants} {gear} {meals} {ownerMode} {settingsHref} />
   </section>
+  {#if hasSafety}
+    <section id="safety" class="trip-section">
+      <SafetySection info={trip.emergency_info} />
+    </section>
+  {/if}
   {#if !isHidden('dates')}
     <section id="dates" class="trip-section" class:is-collapsed={collapsed.has('dates')}>
       <DatesSection {trip} shareToken={trip.share_token} itinerary={data.itinerary} {meals} {ownerMode} onHide={hideHandler('dates')} collapsed={collapsed.has('dates')} onToggle={() => toggleCollapse('dates')} />

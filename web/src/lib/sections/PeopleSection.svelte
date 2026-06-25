@@ -11,7 +11,7 @@
   /**
    * @type {{
    *   shareToken: string,
-   *   participants: Array<{ id: string, display_name: string, rsvp_status: string | null, lean: number, avatar?: string, dietary?: string }>,
+   *   participants: Array<{ id: string, display_name: string, rsvp_status: string | null, lean: number, avatar?: string, dietary?: string, arrival?: string }>,
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
@@ -64,6 +64,32 @@
     saving = true;
     try {
       await tripAction(shareToken, { op: 'lean', participantId: currentParticipantId, lean });
+      await invalidateAll();
+    } catch (_) {
+      /* reconciled */
+    } finally {
+      saving = false;
+    }
+  }
+
+  // Live check-in (#11). '' = not checked in.
+  /** @type {Record<string, string>} */
+  const arrivalEmoji = { not_left: '🏠', en_route: '🚗', arrived: '✅' };
+  const ARRIVAL_OPTS = [
+    { value: 'not_left', emoji: '🏠', label: 'Not left' },
+    { value: 'en_route', emoji: '🚗', label: 'En route' },
+    { value: 'arrived', emoji: '✅', label: 'Arrived' }
+  ];
+  // Anyone who's checked in — drives the "who's here" summary line.
+  const checkedIn = $derived(participants.filter((p) => p.arrival));
+
+  /** Set my arrival; tapping the current one again clears it. @param {string} value */
+  async function setArrival(value) {
+    if (!currentParticipantId || saving) return;
+    saving = true;
+    const next = me?.arrival === value ? '' : value;
+    try {
+      await tripAction(shareToken, { op: 'set_arrival', participantId: currentParticipantId, arrival: next });
       await invalidateAll();
     } catch (_) {
       /* reconciled */
@@ -127,6 +153,9 @@
         {:else if p.rsvp_status}
           <span class="text-[13px]">{statusEmoji[p.rsvp_status]}</span>
         {/if}
+        {#if p.arrival}
+          <span class="text-[13px]" title={ARRIVAL_OPTS.find((o) => o.value === p.arrival)?.label}>{arrivalEmoji[p.arrival]}</span>
+        {/if}
       </span>
     {/each}
   </div>
@@ -158,6 +187,31 @@
           >
             {o.label}
           </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  <!-- Live check-in (#11): your own arrival status + a who's-here summary. -->
+  {#if me}
+    <div class="mt-3.5 border-t border-sand-200 pt-3.5">
+      <div class="mb-1.5 flex items-baseline justify-between gap-2">
+        <span class="font-body text-[12.5px] font-extrabold text-cocoa-500">📍 Check in</span>
+        {#if checkedIn.length}
+          <span class="font-body text-[12px] font-bold text-cocoa-400">
+            {checkedIn.filter((p) => p.arrival === 'arrived').length} here · {checkedIn.filter((p) => p.arrival === 'en_route').length} en route
+          </span>
+        {/if}
+      </div>
+      <div class="flex gap-1.5">
+        {#each ARRIVAL_OPTS as o}
+          <button
+            type="button"
+            disabled={saving}
+            onclick={() => setArrival(o.value)}
+            class="flex-1 rounded-full px-1 py-1.5 font-display text-[12px] font-semibold transition
+              {me.arrival === o.value ? 'bg-coral-500 text-white shadow-soft' : 'bg-sand-100 text-cocoa-700 hover:bg-sand-200'}"
+          >{o.emoji} {o.label}</button>
         {/each}
       </div>
     </div>
