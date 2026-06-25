@@ -16,6 +16,9 @@ discussion live in
 - **Planning phase** — start a trip as an idea: gather availability (proposed
   ranges + a free-pick calendar heatmap) and location ideas (suggest + upvote),
   then the owner confirms it into a real trip
+- **Rich location cards** — location ideas render as a horizontal card row with
+  self-hosted, SSRF-guarded link previews (OpenGraph unfurl), drag-drop/upload
+  images, and the picked spot's image carried into the confirmed trip
 - One invite link per trip; **accounts** (Google OAuth2 + email/password) — sign
   in to join, and only invited members see the details (non-members get a teaser)
 - **Membership + roles** — organizer / guest; creator is auto-organizer;
@@ -34,6 +37,7 @@ discussion live in
 ## v1 · Quick Wins & Polish
 
 - [x] [#31 Planning phase — gather dates & location before a trip is real](https://github.com/walaware/tripwala/issues/31) ✅
+- [x] [#32 Rich location cards — link previews, custom images, confirmed hero](https://github.com/walaware/tripwala/issues/32) ✅
 - [x] ~~#1 Trip secret / passphrase invite~~ — dropped; superseded by accounts
 - [ ] [#2 Weather forecast + countdown](https://github.com/walaware/tripwala/issues/2)
 - [ ] [#3 Dietary restrictions (feeds Meals)](https://github.com/walaware/tripwala/issues/3)
