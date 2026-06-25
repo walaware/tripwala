@@ -1,6 +1,6 @@
 <script>
   import { invalidateAll } from '$app/navigation';
-  import { Avatar, Chip, Card, Button } from '@walaware/design';
+  import { Avatar, Chip, Card, Button, DateField } from '@walaware/design';
   import PlanDateSection from '$lib/sections/PlanDateSection.svelte';
   import PlanLocationSection from '$lib/sections/PlanLocationSection.svelte';
   import TripSettingsSection from '$lib/sections/TripSettingsSection.svelte';
@@ -8,7 +8,6 @@
   import { planAction } from '$lib/planClient.js';
   import { tripEmoji } from '$lib/format.js';
   import { useShell } from '$lib/shell.svelte.js';
-  import { collapseHeader } from '$lib/collapseHeader.js';
 
   /** @type {{ data: any }} */
   let { data } = $props();
@@ -75,7 +74,7 @@
 </script>
 
 <!-- Sticky header (data-appshell-sticky) — emoji tile + name + planning status. -->
-<header data-appshell-sticky class="trip-head" style="background: var(--color-bg-app)" use:collapseHeader={(c) => (shell.collapsed = c)}>
+<header data-appshell-sticky class="trip-head" style="background: var(--color-bg-app)">
   <div class="flex items-center gap-3">
     <span
       class="grid h-12 w-12 flex-none place-items-center rounded-md text-[26px]"
@@ -118,17 +117,8 @@
             </div>
           {:else}
             <div class="font-display text-[15px] font-semibold text-cocoa-900">Confirm the trip</div>
-            <!-- appearance-none lets native date inputs shrink so they sit side
-                 by side without overflowing on mobile (see TripSettingsSection). -->
-            <div class="mt-3 flex gap-2">
-              <label class="flex min-w-0 flex-1 flex-col gap-1">
-                <span class="font-body text-[11px] font-extrabold uppercase text-cocoa-500">Start</span>
-                <input type="date" bind:value={cStart} class="{inputClass} min-w-0 appearance-none" />
-              </label>
-              <label class="flex min-w-0 flex-1 flex-col gap-1">
-                <span class="font-body text-[11px] font-extrabold uppercase text-cocoa-500">End</span>
-                <input type="date" bind:value={cEnd} min={cStart} class="{inputClass} min-w-0 appearance-none" />
-              </label>
+            <div class="mt-3">
+              <DateField range bind:start={cStart} bind:end={cEnd} startLabel="Start" endLabel="End" minNights={trip.min_nights} />
             </div>
             <label class="mt-2 block">
               <span class="font-body text-[11px] font-extrabold uppercase text-cocoa-500">Location</span>
@@ -212,14 +202,6 @@
     padding: 16px 0 14px;
     margin-bottom: var(--stack-gap, 14px);
     border-bottom: 1px solid var(--color-sand-300);
-  }
-  /* On phones the AppShell has its own sticky top bar — let this header scroll
-     away (it crossfades into the top bar) so there's one sticky header + more
-     vertical room. Stays sticky on desktop (no top bar there). */
-  @media (max-width: 919.98px) {
-    .trip-head {
-      position: static;
-    }
   }
   .trip-stack {
     display: flex;

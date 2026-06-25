@@ -5,6 +5,7 @@
   import { Button } from '@walaware/design';
   import { TextField } from '@walaware/design';
   import { Avatar } from '@walaware/design';
+  import { DateField } from '@walaware/design';
 
   /** @type {{ data: any, form: any }} */
   let { data, form } = $props();
@@ -76,16 +77,17 @@
           {#if errors.location}<p class="mt-1 font-body text-sm font-bold text-berry-600">{errors.location}</p>{/if}
         </div>
 
-        <div class="flex gap-3">
-          <div class="min-w-0 flex-1">
-            <label class={labelClass} for="start_date">Start</label>
-            <input id="start_date" name="start_date" type="date" value={values.start_date} class="{inputClass} min-w-0 appearance-none" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <label class={labelClass} for="end_date">End</label>
-            <input id="end_date" name="end_date" type="date" value={values.end_date} class="{inputClass} min-w-0 appearance-none" />
-            {#if errors.end_date}<p class="mt-1 font-body text-sm font-bold text-berry-600">{errors.end_date}</p>{/if}
-          </div>
+        <div>
+          <DateField
+            range
+            start={values.start_date}
+            end={values.end_date}
+            nameStart="start_date"
+            nameEnd="end_date"
+            startLabel="Start"
+            endLabel="End"
+          />
+          {#if errors.end_date}<p class="mt-1 font-body text-sm font-bold text-berry-600">{errors.end_date}</p>{/if}
         </div>
 
         <div>

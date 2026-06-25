@@ -2,6 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import { Card } from '@walaware/design';
   import { Button } from '@walaware/design';
+  import { DateField } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { planAction } from '$lib/planClient.js';
   import { fmtDateRange } from '$lib/format.js';
@@ -136,8 +137,6 @@
     }
   }
 
-  const inputClass =
-    'rounded-md border-2 border-sand-300 bg-white px-2.5 py-2 font-body text-sm font-bold text-cocoa-900 outline-none focus:border-coral-400';
   const voteBtn = 'rounded-full px-2.5 py-1 font-body text-xs font-extrabold transition';
 </script>
 
@@ -176,19 +175,9 @@
   {/if}
 
   {#if isOrganizer}
-    <!-- From/To sit side by side (appearance-none lets the native date inputs
-         shrink so they don't overflow); Propose wraps to a full-width button
-         below on phones (basis-full) and inline on sm+ (sm:mb-1 lifts its lip). -->
-    <div class="mt-2.5 flex flex-wrap items-end gap-2">
-      <label class="flex min-w-0 flex-1 flex-col gap-1">
-        <span class="font-body text-[11px] font-extrabold uppercase text-cocoa-500">From</span>
-        <input type="date" bind:value={propStart} min={todayStr} class="{inputClass} w-full min-w-0 appearance-none" />
-      </label>
-      <label class="flex min-w-0 flex-1 flex-col gap-1">
-        <span class="font-body text-[11px] font-extrabold uppercase text-cocoa-500">To</span>
-        <input type="date" bind:value={propEnd} min={propStart || todayStr} class="{inputClass} w-full min-w-0 appearance-none" />
-      </label>
-      <Button variant="soft" size="sm" class="h-10 basis-full whitespace-nowrap sm:mb-1 sm:basis-auto" onclick={proposeRange} disabled={!propStart || busy || tooShort}>
+    <div class="mt-2.5 flex flex-col gap-2">
+      <DateField range bind:start={propStart} bind:end={propEnd} startLabel="From" endLabel="To" min={todayStr} minNights={minNights} />
+      <Button variant="soft" size="sm" class="w-full whitespace-nowrap sm:w-auto sm:self-start" onclick={proposeRange} disabled={!propStart || busy || tooShort}>
         Propose dates
       </Button>
     </div>

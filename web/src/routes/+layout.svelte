@@ -1,6 +1,6 @@
 <script>
   import '../app.css';
-  import { AppShell, AppIcon, Wordmark } from '@walaware/design';
+  import { AppShell } from '@walaware/design';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { createShell } from '$lib/shell.svelte.js';
@@ -39,15 +39,13 @@
   // nav (in-page anchors, driven by scrollSpy) and adds a "← All trips" exit.
   const nav = $derived(shell.trip ? shell.trip.nav : appNav);
   const back = $derived(inTrip ? { label: 'All trips', onClick: () => goto('/') } : null);
-  // In a trip we render our own top-bar identity (the ctxTitle snippet): the app
-  // icon + wordmark crossfade to the trip's emoji + title + subtitle as the page
-  // header scrolls under the bar. `data-trip` on <html> hides the kit's own
-  // top-bar app icon so ours is the only one (the kit icon shows otherwise).
-  $effect(() => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.toggleAttribute('data-trip', inTrip);
-    return () => document.documentElement.removeAttribute('data-trip');
-  });
+  // Contextual top-bar identity. The kit (v0.5.0) collapses the trip page's
+  // `[data-appshell-sticky]` header into the top bar on mobile, crossfading the
+  // brand → this icon + title + subtitle. We just hand it the values; the shell
+  // owns the animation, the icon swap, and the scroll math.
+  const tripTitle = $derived(shell.trip?.title ?? null);
+  const tripSubtitle = $derived(shell.trip?.subtitle ?? null);
+  const tripIcon = $derived(shell.trip?.emoji ?? null);
 
   // Always-available desktop sidebar (AppShell default): sidebar ≥ 920px, top-bar
   // + drawer below. The soon rows give the app-level sidebar real substance.
@@ -79,39 +77,6 @@
   const settingsActive = $derived(path.endsWith('/settings'));
 </script>
 
-<!-- The mobile top-bar identity while a trip is open: two layers stacked in the
-     same grid cell, crossfaded by opacity as the page header collapses. At the
-     top it's the app icon + wordmark; scrolled, it's the trip's emoji + title +
-     subtitle. Pure CSS opacity (reliable across the kit's snippet boundary). -->
-{#snippet ctxTitle()}
-  <span class="grid min-w-0 items-center">
-    <span
-      class="flex min-w-0 items-center gap-2 transition-opacity duration-200 [grid-area:1/1] {shell.collapsed
-        ? 'pointer-events-none opacity-0'
-        : 'opacity-100'}"
-    >
-      <AppIcon app="tripwala" size={26} />
-      <Wordmark root="trip" size={20} />
-    </span>
-    <span
-      class="flex min-w-0 items-center gap-2 transition-opacity duration-200 [grid-area:1/1] {shell.collapsed
-        ? 'opacity-100'
-        : 'pointer-events-none opacity-0'}"
-    >
-      <span
-        class="grid h-7 w-7 flex-none place-items-center rounded-md text-[15px]"
-        style="background: linear-gradient(135deg, var(--color-sand-200), var(--color-sand-300))"
-      >{shell.trip?.emoji ?? '🧭'}</span>
-      <span class="flex min-w-0 flex-col leading-tight">
-        <span class="truncate font-display text-[14px] font-bold text-cocoa-900">{shell.trip?.title ?? ''}</span>
-        {#if shell.trip?.subtitle}
-          <span class="truncate font-body text-[10.5px] font-extrabold text-coral-600">{shell.trip.subtitle}</span>
-        {/if}
-      </span>
-    </span>
-  </span>
-{/snippet}
-
 {#if user}
   <AppShell
     app="tripwala"
@@ -120,7 +85,9 @@
     {onSettings}
     {settingsActive}
     {back}
-    title={inTrip ? ctxTitle : null}
+    title={tripTitle}
+    subtitle={tripSubtitle}
+    icon={tripIcon}
     scrollSpy={inTrip}
     {breakpoint}
   >
@@ -131,12 +98,3 @@
   <!-- Logged-out / auth pages bring their own full-bleed chrome. -->
   {@render children()}
 {/if}
-
-<style>
-  /* While a trip is open we render our own app icon inside the top-bar title
-     slot (ctxTitle), so hide the AppShell's own top-bar app icon (the squircle
-     [role="img"] that's a direct child of the top bar) to avoid two icons. */
-  :global(html[data-trip] .wala-appshell .topbar > [role='img']) {
-    display: none;
-  }
-</style>

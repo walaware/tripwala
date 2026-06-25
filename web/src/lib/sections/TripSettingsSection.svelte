@@ -2,7 +2,7 @@
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
   import { tripAction } from '$lib/tripClient.js';
-  import { Card, Button, Avatar } from '@walaware/design';
+  import { Card, Button, Avatar, DateField } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
 
   /**
@@ -272,19 +272,7 @@
             <input id="ts-loc" bind:value={form.location} maxlength="300" class={inputClass} />
           </div>
         </div>
-        <!-- appearance-none strips the native date control's intrinsic min-width
-             (the real cause of the overflow on mobile Chrome/Safari) so the
-             fields shrink to share the row without spilling out of the card. -->
-        <div class="flex gap-2.5">
-          <div class="min-w-0 flex-1">
-            <label class={labelClass} for="ts-start">Start</label>
-            <input id="ts-start" type="date" bind:value={form.start_date} class="{inputClass} min-w-0 appearance-none" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <label class={labelClass} for="ts-end">End</label>
-            <input id="ts-end" type="date" bind:value={form.end_date} min={form.start_date} class="{inputClass} min-w-0 appearance-none" />
-          </div>
-        </div>
+        <DateField range bind:start={form.start_date} bind:end={form.end_date} startLabel="Start" endLabel="End" />
         <div>
           <label class={labelClass} for="ts-min-nights">Minimum nights</label>
           <input id="ts-min-nights" type="number" inputmode="numeric" min="0" max="365" bind:value={form.min_nights} class={inputClass} />

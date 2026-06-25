@@ -26,7 +26,7 @@
     "vite": "^6.2.5"
   },
   "dependencies": {
-    "@walaware/design": "github:walaware/design#v0.3.3",
+    "@walaware/design": "github:walaware/design#v0.5.0",
     "nodemailer": "^9.0.1",
     "pocketbase": "^0.26.2"
   }
