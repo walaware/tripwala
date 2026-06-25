@@ -15,3 +15,21 @@ export async function planAction(shareToken, body) {
   if (!res.ok) throw new Error(`Planning action "${body.op}" failed (${res.status})`);
   return res.json();
 }
+
+/**
+ * Multipart variant for ops that carry a file (e.g. set_location_image). Sends
+ * the op + ids as form fields alongside the File; the /plan endpoint detects the
+ * multipart content-type and routes it the same way as a JSON op.
+ *
+ * @param {string} shareToken
+ * @param {Record<string, string>} fields must include `op` (and usually `ideaId`)
+ * @param {File} file
+ */
+export async function planUpload(shareToken, fields, file) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  fd.append('image', file, file.name || 'photo');
+  const res = await fetch(`/${encodeURIComponent(shareToken)}/plan`, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error(`Planning upload "${fields.op}" failed (${res.status})`);
+  return res.json();
+}

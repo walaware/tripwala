@@ -5,6 +5,7 @@
 
 import { participantName } from '../displayName.js';
 import { avatarUrl } from './userAvatar.js';
+import { locationImageUrl } from './locationMedia.js';
 
 /** @param {string|undefined|null} d a PB datetime → "YYYY-MM-DD" */
 const dateOnly = (d) => String(d ?? '').slice(0, 10);
@@ -79,6 +80,11 @@ export async function loadPlanning(pb, trip, myParticipantId) {
       url: i.url || '',
       note: i.note || '',
       suggester: i.participant ? nameById[i.participant] ?? 'Someone' : '',
+      mineParticipant: i.participant || '', // who suggested it (for "your idea" upload rights)
+      image: locationImageUrl(i), // uploaded/drag-dropped picture (overrides preview)
+      previewImage: i.preview_image || '', // og:image URL the browser loads directly
+      previewTitle: i.preview_title || '',
+      previewDescription: i.preview_description || '',
       votes: ideaVotes[i.id].count,
       mine: ideaVotes[i.id].mine
     }))

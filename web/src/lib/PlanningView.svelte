@@ -152,6 +152,7 @@
       locations={data.locations ?? []}
       {isOrganizer}
       pickedLabel={trip.location ?? ''}
+      currentParticipantId={data.membership?.participantId ?? null}
     />
   </section>
 

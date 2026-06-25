@@ -1,6 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
 import { getMembership } from '$lib/server/membership.js';
+import { unfurl } from '$lib/server/unfurl.js';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the PB file field cap
 
 // All planning-phase writes funnel through here (mirrors /actions): resolve the
 // trip from the URL, require the signed-in user to be a member, and derive the
@@ -42,7 +45,23 @@ export async function POST({ params, request, locals }) {
     if (!isOrganizer) throw error(403, 'Organizers only');
   };
 
-  const body = await request.json().catch(() => ({}));
+  // Most ops send JSON; image uploads send multipart/form-data (a File can't ride
+  // in JSON). Parse whichever shape arrived into a plain `body` + optional file.
+  const contentType = request.headers.get('content-type') || '';
+  /** @type {Record<string, any>} */
+  let body = {};
+  /** @type {File | null} */
+  let imageFile = null;
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData().catch(() => null);
+    if (form) {
+      for (const [k, v] of form.entries()) if (typeof v === 'string') body[k] = v;
+      const f = form.get('image');
+      if (f instanceof File && f.size > 0) imageFile = f;
+    }
+  } else {
+    body = await request.json().catch(() => ({}));
+  }
   const op = String(body.op ?? '');
 
   /** Fetch a row and assert it belongs to this trip (direct `trip` relation). */
@@ -128,13 +147,50 @@ export async function POST({ params, request, locals }) {
         const url = String(body.url ?? '').trim();
         if (url && !/^https?:\/\/.+/i.test(url)) throw error(400, 'Links need http(s)://');
         const note = String(body.note ?? '').trim().slice(0, 500);
-        await pb.collection('location_ideas').create({
+        const idea = await pb.collection('location_ideas').create({
           trip: trip.id,
           participant: me.id,
           label,
           url: url.slice(0, 500),
           note
         });
+        // Unfurl the link ONCE, here, so the card has a preview on first render.
+        // Best-effort + SSRF-guarded inside unfurl(); mark fetched either way so a
+        // site with no OG tags isn't retried on every load.
+        if (url) {
+          const preview = await unfurl(url);
+          await pb.collection('location_ideas').update(idea.id, {
+            preview_image: preview?.image ?? '',
+            preview_title: preview?.title ?? '',
+            preview_description: preview?.description ?? '',
+            preview_fetched: true
+          });
+        }
+        break;
+      }
+
+      // Upload (or replace) the card's custom picture — multipart, image only.
+      // Allowed for the suggester or an organizer. Overrides the link preview.
+      case 'set_location_image': {
+        const idea = await inTrip('location_ideas', body.ideaId);
+        if (idea.participant !== me.id && !isOrganizer) throw error(403, "That's not your idea");
+        if (!imageFile) throw error(400, 'Choose an image first');
+        if (!imageFile.type.startsWith('image/')) throw error(400, "That doesn't look like an image");
+        if (imageFile.size > MAX_IMAGE_BYTES) throw error(400, 'Image must be under 5 MB');
+        const fd = new FormData();
+        fd.append('image', imageFile, imageFile.name || 'photo');
+        try {
+          await pb.collection('location_ideas').update(idea.id, fd);
+        } catch (_) {
+          throw error(400, 'Could not save that image — try a different one');
+        }
+        break;
+      }
+
+      case 'remove_location_image': {
+        const idea = await inTrip('location_ideas', body.ideaId);
+        if (idea.participant !== me.id && !isOrganizer) throw error(403, "That's not your idea");
+        await pb.collection('location_ideas').update(idea.id, { image: null });
         break;
       }
 
@@ -159,7 +215,9 @@ export async function POST({ params, request, locals }) {
       case 'pick_location': {
         ownerOnly();
         const idea = await inTrip('location_ideas', body.ideaId);
-        await pb.collection('trips').update(trip.id, { location: idea.label });
+        // Store both: the label (text, for everywhere that shows it) and a relation
+        // to the idea (so the confirmed trip can surface its image/preview).
+        await pb.collection('trips').update(trip.id, { location: idea.label, picked_location: idea.id });
         break;
       }
 

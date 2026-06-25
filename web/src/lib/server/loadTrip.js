@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { superuserPb } from './pocketbase.js';
 import { settleUp } from './settle.js';
 import { avatarUrl } from './userAvatar.js';
+import { locationImageUrl } from './locationMedia.js';
 import { participantName } from '../displayName.js';
 
 /**
@@ -22,7 +23,8 @@ export async function loadTripByShareToken(shareToken) {
   let trip;
   try {
     trip = await pb.collection('trips').getFirstListItem(
-      pb.filter('share_token = {:token}', { token: shareToken })
+      pb.filter('share_token = {:token}', { token: shareToken }),
+      { expand: 'picked_location' } // the chosen idea, so we can show its picture
     );
   } catch (/** @type {any} */ err) {
     if (err?.status === 404) throw error(404, 'Trip not found');
@@ -126,11 +128,29 @@ export async function loadTripByShareToken(shareToken) {
     if (key && !itinerary[key]) itinerary[key] = { id: it.id, label: it.label };
   }
 
+  // The picked location idea (if any) carries its image + link preview into the
+  // confirmed trip, for the expanded location card. Custom image wins over the
+  // unfurled og:image, same as the planning cards.
+  const pickedIdea = trip.expand?.picked_location || null;
+  const pickedLocation = pickedIdea
+    ? {
+        id: pickedIdea.id,
+        label: pickedIdea.label || '',
+        url: pickedIdea.url || '',
+        note: pickedIdea.note || '',
+        image: locationImageUrl(pickedIdea),
+        previewImage: pickedIdea.preview_image || '',
+        previewTitle: pickedIdea.preview_title || '',
+        previewDescription: pickedIdea.preview_description || ''
+      }
+    : null;
+
   return {
     trip: {
       id: trip.id,
       name: trip.name,
       location: trip.location,
+      pickedLocation,
       start_date: trip.start_date,
       end_date: trip.end_date,
       description: trip.description,

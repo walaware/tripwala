@@ -1,6 +1,7 @@
 <script>
   import { Card } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
+  import LocationHeroCard from '$lib/ui/LocationHeroCard.svelte';
   import { tripLength } from '$lib/format.js';
 
   /**
@@ -50,6 +51,9 @@
 
 <SectionHeader emoji="✨" title="Overview" />
 <Card>
+  <!-- Picked location's picture (if any), carried over from planning. -->
+  <LocationHeroCard location={trip.pickedLocation ?? null} />
+
   <div class="grid grid-cols-3 gap-2.5">
     {#each tiles as t}
       <div class="rounded-md bg-surface-sunk px-2 py-3 text-center">
