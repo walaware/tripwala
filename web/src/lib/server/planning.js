@@ -4,6 +4,7 @@
 // viewer's membership.
 
 import { participantName } from '../displayName.js';
+import { avatarUrl } from './userAvatar.js';
 
 /** @param {string|undefined|null} d a PB datetime → "YYYY-MM-DD" */
 const dateOnly = (d) => String(d ?? '').slice(0, 10);
@@ -89,6 +90,7 @@ export async function loadPlanning(pb, trip, myParticipantId) {
     participants: participants.map((p) => ({
       id: p.id,
       display_name: participantName(p),
+      avatar: avatarUrl(p.expand?.user), // Google/uploaded photo if they have an account
       role: p.role || 'guest'
     })),
     members: participants

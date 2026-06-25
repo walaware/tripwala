@@ -169,7 +169,7 @@
         <div class="flex flex-wrap gap-2">
           {#each participants as p (p.id)}
             <span class="flex items-center gap-1.5 rounded-full bg-sand-100 py-1 pl-1 pr-3">
-              <Avatar name={p.display_name} size={26} />
+              <Avatar name={p.display_name} src={p.avatar} size={26} />
               <span class="font-body text-[13px] font-extrabold text-cocoa-900">{p.display_name}</span>
             </span>
           {/each}
