@@ -51,26 +51,23 @@
     user
       ? {
           name: user.name || user.email,
-          avatar: user.avatar || undefined, // Google profile photo (PB url field); falls back to initial
+          avatar: user.avatar || undefined, // resolved photo URL (Google CDN or /api/files/…); falls back to initial
+          // The shell account avatar (sidebar + mobile top bar) opens the profile
+          // editor — available everywhere, not just the dashboard.
+          onProfile: () => goto('/profile'),
           onSignOut: () => logoutForm?.requestSubmit()
         }
       : null
   );
 
   // Settings live INLINE as the trip page's "Trip settings" section (a nav row in
-  // contextual mode). The shell's separate Settings gear is for the standalone
-  // /settings route (planning trips not yet on the contextual shell) and, on the
-  // dashboard, for the account/profile page.
+  // contextual mode). The shell's separate Settings gear is only for the standalone
+  // /settings route (planning trips not yet on the contextual shell). The account /
+  // profile surface is reached via the avatar's onProfile, not this gear.
   const onSettings = $derived(
-    inTrip
-      ? null
-      : tripToken
-        ? () => goto(`/${tripToken}/settings`)
-        : path === '/'
-          ? () => goto('/profile')
-          : null
+    !inTrip && tripToken ? () => goto(`/${tripToken}/settings`) : null
   );
-  const settingsActive = $derived(path.endsWith('/settings') || path === '/profile');
+  const settingsActive = $derived(path.endsWith('/settings'));
 </script>
 
 {#if user}

@@ -42,13 +42,10 @@
       {#each [{ items: trips.current, label: 'Happening now' }, { items: trips.upcoming, label: 'Upcoming' }, { items: trips.past, label: 'Past' }] as section}
         {#if section.items.length}
           <section class="mt-8">
-            <!-- The gap lives on the cards row, not the <h2>: @walaware/design's
-                 theme resets heading margins UNLAYERED, which beats any layered
-                 mb-* utility — so margin on the heading itself is a no-op. -->
-            <h2 class="font-display text-[13px] font-extrabold uppercase tracking-wider text-text-muted">
+            <h2 class="mb-5 font-display text-[13px] font-extrabold uppercase tracking-wider text-text-muted">
               {section.label}
             </h2>
-            <div class="mt-5 flex flex-col gap-3 sm:grid sm:grid-cols-2">
+            <div class="flex flex-col gap-3 sm:grid sm:grid-cols-2">
               {#each section.items as trip (trip.id)}
                 <TripCard {trip} />
               {/each}
