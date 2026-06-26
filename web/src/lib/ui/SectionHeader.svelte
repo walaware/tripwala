@@ -45,7 +45,7 @@
         <button
           type="button"
           onclick={onHide}
-          title="Hide this section for everyone (restore from Trip settings)"
+          title="Hide this section for everyone (restore from Settings)"
           class="rounded-full px-2 py-0.5 font-body text-[12px] font-extrabold text-cocoa-400 transition hover:bg-sand-200 hover:text-cocoa-600"
         >Hide</button>
       {/if}

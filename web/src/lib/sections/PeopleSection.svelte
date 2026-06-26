@@ -16,10 +16,11 @@
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
    *   collapsed?: boolean,
-   *   onToggle?: (() => void) | null
+   *   onToggle?: (() => void) | null,
+   *   isPast?: boolean
    * }}
    */
-  let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null, collapsed = false, onToggle = null } = $props();
+  let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null, collapsed = false, onToggle = null, isPast = false } = $props();
 
   /** @type {Record<string, string>} */
   const statusEmoji = { going: '🔥', maybe: '🤔', out: '💤' };
@@ -113,10 +114,10 @@
   }
 </script>
 
-<SectionHeader emoji="🙌" title="Who's coming?" {onHide} {collapsed} {onToggle}>
+<SectionHeader emoji="🙌" title={isPast ? 'Who went' : "Who's in"} {onHide} {collapsed} {onToggle}>
   {#snippet action()}
-    <Chip tone="leaf">{going} going</Chip>
-    {#if maybe > 0}<Chip tone="sun">{maybe} maybe</Chip>{/if}
+    <Chip tone="leaf">{going} {isPast ? 'went' : 'going'}</Chip>
+    {#if maybe > 0 && !isPast}<Chip tone="sun">{maybe} maybe</Chip>{/if}
   {/snippet}
 </SectionHeader>
 

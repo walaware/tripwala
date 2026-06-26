@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { invalidateAll } from '$app/navigation';
   import { Avatar, Chip, Card, Button, DateField } from '@walaware/design';
   import PlanDateSection from '$lib/sections/PlanDateSection.svelte';
@@ -21,11 +22,11 @@
   // over one scrollable page. (Dates/Where are voting modules, not the read-only
   // confirmed ones.)
   const PLAN_NAV = [
-    { key: 'overview', label: 'The Plan', icon: '📋', href: '#overview' },
+    { key: 'overview', label: 'Overview', icon: '📋', href: '#overview' },
     { key: 'dates', label: 'Dates', icon: '📅', href: '#dates' },
-    { key: 'where', label: 'Where', icon: '📍', href: '#where' },
-    { key: 'crew', label: "Who's in", icon: '🙌', href: '#crew' },
-    { key: 'tripsettings', label: 'Trip settings', icon: '⚙️', href: '#tripsettings' }
+    { key: 'where', label: 'Locations', icon: '📍', href: '#where' },
+    { key: 'crew', label: 'Members', icon: '🙌', href: '#crew' },
+    { key: 'tripsettings', label: 'Settings', icon: '⚙️', href: '#tripsettings' }
   ];
   const shell = useShell();
   const subtitle = $derived(
@@ -71,6 +72,27 @@
 
   const inputClass =
     'w-full rounded-md border-2 border-sand-300 bg-white px-3 py-2.5 font-body text-sm font-bold text-cocoa-900 outline-none focus:border-coral-400';
+
+  // Settings folds closed by default for everyone; the viewer's choice is
+  // remembered per-trip in localStorage (seeded once so a manual expand sticks).
+  let settingsCollapsed = $state(true);
+  const settingsKey = $derived(`tripwala:plan-settings-collapsed:${trip.id}`);
+  onMount(() => {
+    try {
+      const raw = localStorage.getItem(settingsKey);
+      if (raw != null) settingsCollapsed = raw === '1';
+    } catch (_) {
+      /* ignore blocked/corrupt storage */
+    }
+  });
+  function toggleSettings() {
+    settingsCollapsed = !settingsCollapsed;
+    try {
+      localStorage.setItem(settingsKey, settingsCollapsed ? '1' : '0');
+    } catch (_) {
+      /* ignore */
+    }
+  }
 </script>
 
 <!-- Sticky header (data-appshell-sticky) — emoji tile + name + planning status. -->
@@ -91,7 +113,7 @@
 
 <div class="trip-stack">
   <section id="overview" class="trip-section">
-    <SectionHeader emoji="📋" title="The Plan" />
+    <SectionHeader emoji="📋" title="What's happening" />
     <Card>
       <!-- Status, interested count and trip type live in the sticky header (and the
            emoji tile) — don't repeat them here. The Overview is for the plan itself. -->
@@ -178,7 +200,7 @@
     </Card>
   </section>
 
-  <section id="tripsettings" class="trip-section">
+  <section id="tripsettings" class="trip-section" class:is-collapsed={settingsCollapsed}>
     <TripSettingsSection
       shareToken={trip.share_token}
       ownerMode={isOrganizer}
@@ -191,6 +213,8 @@
       inviteVisibility={trip.invite_visibility}
       pending={data.pending ?? []}
       emailEnabled={data.emailEnabled ?? false}
+      collapsed={settingsCollapsed}
+      onToggle={toggleSettings}
     />
   </section>
 </div>
@@ -203,6 +227,10 @@
     padding: 16px 0 14px;
     margin-bottom: var(--stack-gap, 14px);
     border-bottom: 1px solid var(--color-sand-300);
+    /* Opaque strip over the margin gap so cards scrolling under the sticky
+       header never butt against the border (which made its edge look ragged). */
+    background: var(--color-bg-app);
+    box-shadow: 0 var(--stack-gap, 14px) 0 var(--color-bg-app);
   }
   .trip-stack {
     display: flex;
@@ -211,5 +239,9 @@
   }
   .trip-section {
     scroll-margin-top: 120px;
+  }
+  /* Collapsed: fold everything below the section header (its first child). */
+  .trip-section.is-collapsed > :global(*:not(:first-child)) {
+    display: none;
   }
 </style>

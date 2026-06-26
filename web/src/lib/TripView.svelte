@@ -79,12 +79,12 @@
   const SECTION_NAV = [
     { key: 'overview', label: 'Overview', icon: '✨', href: '#overview' },
     { key: 'dates', label: 'Dates', icon: '📅', href: '#dates' },
-    { key: 'crew', label: "Who's coming", icon: '🙌', href: '#crew' },
+    { key: 'crew', label: 'Members', icon: '🙌', href: '#crew' },
     { key: 'gear', label: 'Gear', icon: '🎒', href: '#gear' },
     { key: 'food', label: 'Food', icon: '🍳', href: '#food' },
     { key: 'packing', label: 'Packing', icon: '🧳', href: '#packing' },
     { key: 'expenses', label: 'Expenses', icon: '💸', href: '#expenses' },
-    { key: 'tripsettings', label: 'Trip settings', icon: '⚙️', href: '#tripsettings' },
+    { key: 'tripsettings', label: 'Settings', icon: '⚙️', href: '#tripsettings' },
     { key: 'itinerary', label: 'Itinerary', icon: '🗓️', soon: true },
     { key: 'map', label: 'Map', icon: '🗺️', soon: true },
     { key: 'photos', label: 'Photos', icon: '📷', soon: true }
@@ -99,11 +99,18 @@
   const hasSafety = $derived(!!(trip.emergency_info || '').trim());
   const fullNav = $derived.by(() => {
     let nav = [...SECTION_NAV];
+    if (isPast) {
+      // Wrapped replaces Overview at the top of a past trip (Overview's content
+      // is folded into the recap), so swap the lead nav row to match.
+      nav = nav.filter((n) => n.key !== 'overview');
+      nav.unshift({ key: 'wrapped', label: 'Wrapped', icon: '🎉', href: '#wrapped' });
+    }
     if (hasSafety) {
-      const i = nav.findIndex((n) => n.key === 'overview');
+      // Safety sits just after the lead recap/overview row.
+      const leadKey = isPast ? 'wrapped' : 'overview';
+      const i = nav.findIndex((n) => n.key === leadKey);
       nav.splice(i + 1, 0, { key: 'safety', label: 'Safety', icon: '🚨', href: '#safety' });
     }
-    if (isPast) nav = [{ key: 'wrapped', label: 'Wrapped', icon: '🎉', href: '#wrapped' }, ...nav];
     return nav;
   });
   const visibleNav = $derived(fullNav.filter((n) => !hidden.has(n.key)));
@@ -126,11 +133,21 @@
   // who clicks (doesn't hide it for others). Persisted in localStorage so it
   // survives reloads. The chevron + folding work for every viewer, organizer or
   // not — distinct from Hide, which is organizer-only and trip-wide.
-  let collapsed = $state(new Set());
+  // Sections folded by default until the viewer chooses otherwise. The seed
+  // marker lets us apply these once, so a later manual expand isn't re-folded on
+  // the next load (and isn't forced on viewers who already have saved state).
+  const DEFAULT_COLLAPSED = ['tripsettings'];
+  const SEED_MARK = '__seeded_v1__';
+  let collapsed = $state(new Set(DEFAULT_COLLAPSED));
   onMount(() => {
     try {
       const raw = localStorage.getItem(`tripwala:collapsed:${trip.id}`);
-      if (raw) collapsed = new Set(JSON.parse(raw));
+      const set = raw ? new Set(JSON.parse(raw)) : new Set();
+      if (!set.has(SEED_MARK)) {
+        for (const k of DEFAULT_COLLAPSED) set.add(k);
+        set.add(SEED_MARK);
+      }
+      collapsed = set;
     } catch (_) {
       /* ignore corrupt/blocked storage */
     }
@@ -223,26 +240,30 @@
 
 <div class="trip-stack">
   {#if isPast}
-    <section id="wrapped" class="trip-section">
-      <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} />
+    <section id="wrapped" class="trip-section" class:is-collapsed={collapsed.has('wrapped')}>
+      <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} collapsed={collapsed.has('wrapped')} onToggle={() => toggleCollapse('wrapped')} />
     </section>
   {/if}
-  <section id="overview" class="trip-section">
-    <OverviewSection {trip} {participants} {gear} {meals} {ownerMode} {settingsHref} />
-  </section>
+  {#if !isPast}
+    <!-- Upcoming/active: the live overview. Past trips fold this into Wrapped
+         (its location photo + description live there), so it isn't shown twice. -->
+    <section id="overview" class="trip-section" class:is-collapsed={collapsed.has('overview')}>
+      <OverviewSection {trip} {participants} {gear} {meals} {ownerMode} {settingsHref} collapsed={collapsed.has('overview')} onToggle={() => toggleCollapse('overview')} />
+    </section>
+  {/if}
   {#if hasSafety}
-    <section id="safety" class="trip-section">
-      <SafetySection info={trip.emergency_info} />
+    <section id="safety" class="trip-section" class:is-collapsed={collapsed.has('safety')}>
+      <SafetySection info={trip.emergency_info} collapsed={collapsed.has('safety')} onToggle={() => toggleCollapse('safety')} />
     </section>
   {/if}
   {#if !isHidden('dates')}
     <section id="dates" class="trip-section" class:is-collapsed={collapsed.has('dates')}>
-      <DatesSection {trip} shareToken={trip.share_token} itinerary={data.itinerary} {meals} {ownerMode} onHide={hideHandler('dates')} collapsed={collapsed.has('dates')} onToggle={() => toggleCollapse('dates')} />
+      <DatesSection {trip} shareToken={trip.share_token} itinerary={data.itinerary} {meals} {ownerMode} {isPast} onHide={hideHandler('dates')} collapsed={collapsed.has('dates')} onToggle={() => toggleCollapse('dates')} />
     </section>
   {/if}
   {#if !isHidden('crew')}
     <section id="crew" class="trip-section" class:is-collapsed={collapsed.has('crew')}>
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} onHide={hideHandler('crew')} collapsed={collapsed.has('crew')} onToggle={() => toggleCollapse('crew')} />
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} onHide={hideHandler('crew')} collapsed={collapsed.has('crew')} onToggle={() => toggleCollapse('crew')} />
     </section>
   {/if}
   {#if !isHidden('gear')}
@@ -274,7 +295,7 @@
       />
     </section>
   {/if}
-  <section id="tripsettings" class="trip-section">
+  <section id="tripsettings" class="trip-section" class:is-collapsed={collapsed.has('tripsettings')}>
     <TripSettingsSection
       shareToken={trip.share_token}
       {ownerMode}
@@ -286,6 +307,8 @@
       inviteVisibility={trip.invite_visibility}
       pending={data.pending ?? []}
       emailEnabled={data.emailEnabled ?? false}
+      collapsed={collapsed.has('tripsettings')}
+      onToggle={() => toggleCollapse('tripsettings')}
     />
   </section>
 
@@ -306,6 +329,13 @@
     padding: 16px 0 14px;
     margin-bottom: var(--stack-gap, 14px);
     border-bottom: 1px solid var(--color-sand-300);
+    /* The header background is opaque, but the margin-bottom gap below the
+       border is not — so cards scrolling under the sticky header butt straight
+       against the border and make its edge look ragged. Paint an opaque strip
+       of the app background over that gap so the border always sits on a clean
+       buffer. */
+    background: var(--color-bg-app);
+    box-shadow: 0 var(--stack-gap, 14px) 0 var(--color-bg-app);
   }
   .trip-stack {
     display: flex;

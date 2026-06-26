@@ -8,13 +8,16 @@
    *     name: string, slug: string, location?: string, trip_type?: string,
    *     start_date?: string, end_date?: string,
    *     role?: string, status?: string, going?: number, maybe?: number, members?: number,
-   *     crew?: Array<{ name: string, avatar?: string }>
+   *     crew?: Array<{ name: string, avatar?: string }>,
+   *     _bucket?: 'current' | 'upcoming' | 'past'
    *   }
    * }}
    */
   let { trip } = $props();
 
   const planning = $derived(trip.status === 'planning');
+  // Past trips read in the past tense: "6 went" rather than "6 going".
+  const isPast = $derived(trip._bucket === 'past');
   const emoji = $derived(tripEmoji(trip.trip_type));
   const meta = $derived(
     [trip.start_date ? fmtDateRange(trip.start_date, trip.end_date) : '', trip.location]
@@ -58,7 +61,7 @@
         <Chip tone="sun">🌱 Planning</Chip>
         <Chip tone="berry">👥 {trip.members ?? 0} interested</Chip>
       {:else}
-        <Chip tone="leaf">🎉 {trip.going ?? 0} going</Chip>
+        <Chip tone="leaf">🎉 {trip.going ?? 0} {isPast ? 'went' : 'going'}</Chip>
         {#if (trip.maybe ?? 0) > 0}<Chip tone="sun">🤔 {trip.maybe} maybe</Chip>{/if}
       {/if}
     </span>

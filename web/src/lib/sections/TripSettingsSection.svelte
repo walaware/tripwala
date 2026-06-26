@@ -18,13 +18,15 @@
    *   joinPolicy?: string,
    *   inviteVisibility?: string,
    *   pending?: Array<{ id: string, display_name: string, avatar?: string }>,
-   *   emailEnabled?: boolean
+   *   emailEnabled?: boolean,
+   *   collapsed?: boolean,
+   *   onToggle?: (() => void) | null
    * }}
    */
   let {
     shareToken, ownerMode = false, me = null, trip, members = [], currentParticipantId = null,
     showSections = true, joinPolicy = 'instant', inviteVisibility = 'everyone', pending = [],
-    emailEnabled = false
+    emailEnabled = false, collapsed = false, onToggle = null
   } = $props();
 
   const TYPES = [
@@ -34,7 +36,7 @@
   ];
   // Hideable modules (Overview + Trip settings are always shown).
   const HIDEABLE = [
-    ['dates', '📅 Dates'], ['crew', "🙌 Who's coming"], ['gear', '🎒 Gear'],
+    ['dates', '📅 Dates'], ['crew', '🙌 Members'], ['gear', '🎒 Gear'],
     ['food', '🍳 Food'], ['packing', '🧳 Packing'], ['expenses', '💸 Expenses']
   ];
 
@@ -154,7 +156,7 @@
   const labelClass = 'mb-1 block font-body text-[12px] font-extrabold uppercase tracking-wide text-cocoa-500';
 </script>
 
-<SectionHeader emoji="⚙️" title="Trip settings" />
+<SectionHeader emoji="⚙️" title="Settings" {collapsed} {onToggle} />
 <Card>
   <!-- Everyone: your own preferences -->
   {#if me}
@@ -352,7 +354,7 @@
          already shows in "Who's coming"), just name + role + the controls. -->
     <div class="mt-4 border-t border-sand-200 pt-4">
       <div class="mb-1 font-display text-[15px] font-bold text-text-strong">Roles &amp; access</div>
-      <div class="mb-1.5 font-body text-[12.5px] font-bold text-text-muted">Promote a co-organizer or remove someone. Everyone appears in “Who's coming”.</div>
+      <div class="mb-1.5 font-body text-[12.5px] font-bold text-text-muted">Promote a co-organizer or remove someone. Everyone appears in “Members”.</div>
       <div class="flex flex-col">
         {#each members as m, i (m.id)}
           <div class="flex items-center gap-2 py-2 pr-1.5 {i !== 0 ? 'border-t border-sand-200' : ''}">

@@ -80,7 +80,8 @@ export async function loadUserTrips(pb, userId) {
 
   /** @type {Record<string, { members: number, going: number, maybe: number }>} */
   const stats = {};
-  /** @type {Record<string, Array<{ name: string, avatar?: string }>>} crew preview per trip (going first) */
+  /** @typedef {{ name: string, avatar?: string, _going: boolean, _me: boolean }} CrewEntry */
+  /** @type {Record<string, CrewEntry[]>} crew per trip (sorted + capped when attached below) */
   const crewByTrip = {};
   for (const p of participants) {
     const s = (stats[p.trip] ??= { members: 0, going: 0, maybe: 0 });
@@ -88,11 +89,23 @@ export async function loadUserTrips(pb, userId) {
     if (p.rsvp_status === 'going') s.going++;
     else if (p.rsvp_status === 'maybe') s.maybe++;
     const crew = (crewByTrip[p.trip] ??= []);
-    const entry = { name: participantName(p), avatar: avatarUrl(p.expand?.user) };
-    // Going members lead the avatar stack; everyone else trails.
-    if (p.rsvp_status === 'going') crew.unshift(entry);
-    else crew.push(entry);
+    crew.push({
+      name: participantName(p),
+      avatar: avatarUrl(p.expand?.user),
+      _going: p.rsvp_status === 'going',
+      _me: p.user === userId
+    });
   }
+
+  // Avatar preview order: going members lead the stack, and the viewer leads
+  // within their tier so "me" is never the one dropped by the 5-avatar cap.
+  /** @param {CrewEntry[]} crew */
+  const crewPreview = (crew) =>
+    crew
+      .slice()
+      .sort((a, b) => Number(b._going) - Number(a._going) || Number(b._me) - Number(a._me))
+      .slice(0, 5)
+      .map(({ name, avatar }) => ({ name, avatar }));
 
   const today = todayUtc();
   /** @type {DashTrip[]} */
@@ -110,7 +123,7 @@ export async function loadUserTrips(pb, userId) {
       status: t.status || 'confirmed',
       trip_type: t.trip_type ?? 'other',
       ...(stats[t.id] ?? { members: 0, going: 0, maybe: 0 }),
-      crew: (crewByTrip[t.id] ?? []).slice(0, 5),
+      crew: crewPreview(crewByTrip[t.id] ?? []),
       _start: start,
       _bucket: bucketOf({ start, end }, today)
     };

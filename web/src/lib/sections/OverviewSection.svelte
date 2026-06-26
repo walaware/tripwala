@@ -12,10 +12,21 @@
    *   gear: Array<any>,
    *   meals: Array<any>,
    *   ownerMode?: boolean,
-   *   settingsHref?: string
+   *   settingsHref?: string,
+   *   collapsed?: boolean,
+   *   onToggle?: (() => void) | null
    * }}
    */
-  let { trip, participants, gear, meals, ownerMode = false, settingsHref = '' } = $props();
+  let {
+    trip,
+    participants,
+    gear,
+    meals,
+    ownerMode = false,
+    settingsHref = '',
+    collapsed = false,
+    onToggle = null
+  } = $props();
 
   const going = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'going').length);
 
@@ -57,7 +68,7 @@
   ]);
 </script>
 
-<SectionHeader emoji="✨" title="Overview" />
+<SectionHeader emoji="✨" title="What's happening" {collapsed} {onToggle} />
 <Card>
   <!-- Picked location's picture (if any), carried over from planning. -->
   <LocationHeroCard location={trip.pickedLocation ?? null} />

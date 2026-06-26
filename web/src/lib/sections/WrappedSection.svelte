@@ -4,6 +4,8 @@
   // the trip once its end date has passed (see TripView's `isPast`).
   import { Card } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
+  import LocationHeroCard from '$lib/ui/LocationHeroCard.svelte';
+  import { cardImage } from '$lib/locationCard.js';
   import { fmtDateRange, tripLength } from '$lib/format.js';
 
   /**
@@ -12,10 +14,12 @@
    *   participants: Array<any>,
    *   gear: Array<any>,
    *   meals: Array<any>,
-   *   expenses: Array<any>
+   *   expenses: Array<any>,
+   *   collapsed?: boolean,
+   *   onToggle?: (() => void) | null
    * }}
    */
-  let { trip, participants, gear, meals, expenses } = $props();
+  let { trip, participants, gear, meals, expenses, collapsed = false, onToggle = null } = $props();
 
   const stats = $derived.by(() => {
     const len = tripLength(trip.start_date, trip.end_date);
@@ -52,6 +56,10 @@
 
   const money = (/** @type {number} */ n) => `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
 
+  // The picked location's photo, carried over from planning — folded into the
+  // recap so a wrapped trip has a single summary card (no separate Overview).
+  const heroImg = $derived(trip.pickedLocation ? cardImage(trip.pickedLocation) : { src: '' });
+
   // The headline stat tiles — only the ones with something to show.
   const tiles = $derived.by(() => {
     /** @type {Array<{ label: string, value: string }>} */
@@ -65,7 +73,7 @@
   });
 </script>
 
-<SectionHeader emoji="🎉" title="Wrapped" subtitle="— how it went" />
+<SectionHeader emoji="🎉" title="Wrapped" subtitle="— how it went" {collapsed} {onToggle} />
 <Card>
   <!-- Celebratory banner -->
   <div
@@ -78,6 +86,13 @@
       {#if trip.start_date}{fmtDateRange(trip.start_date, trip.end_date)}{/if}{#if trip.location} · {trip.location}{/if}
     </div>
   </div>
+
+  <!-- Picked location's photo (carried over from planning). -->
+  {#if heroImg.src}
+    <div class="mt-4">
+      <LocationHeroCard location={trip.pickedLocation} eyebrow="📍 Where we went" />
+    </div>
+  {/if}
 
   <!-- Headline stats -->
   <div class="mt-4 grid grid-cols-3 gap-2.5">
@@ -111,6 +126,15 @@
           </li>
         {/each}
       </ul>
+    </div>
+  {/if}
+
+  {#if trip.description}
+    <!-- Trip details / notes carried over from the trip page. -->
+    <div
+      class="mt-4 rounded-2xl bg-sand-100 p-4 font-body text-[13.5px] leading-relaxed text-cocoa-700 [&_a]:font-extrabold [&_a]:text-coral-700 [&_a]:underline [&_a]:underline-offset-2"
+    >
+      {@html trip.description}
     </div>
   {/if}
 </Card>

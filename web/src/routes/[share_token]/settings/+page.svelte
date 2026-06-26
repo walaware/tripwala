@@ -42,12 +42,12 @@
   const labelClass = 'mb-[7px] block font-display text-sm font-semibold text-cocoa-900';
 </script>
 
-<svelte:head><title>Trip settings — tripwala</title></svelte:head>
+<svelte:head><title>Settings — tripwala</title></svelte:head>
 
 <div class="min-h-full">
   <div class="mx-auto max-w-xl">
     <a href="/{data.shareToken}" class="font-body text-sm font-extrabold text-coral-600 hover:underline">← Back to trip</a>
-    <h1 class="mt-2 font-display text-[27px] font-bold tracking-tight text-cocoa-900">Trip settings</h1>
+    <h1 class="mt-2 font-display text-[27px] font-bold tracking-tight text-cocoa-900">Settings</h1>
 
     <!-- Details -->
     <Card class="mt-5">

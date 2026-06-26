@@ -7,9 +7,12 @@
    * (custom upload or unfurled preview); the plain location text already shows in
    * the trip header.
    *
-   * @type {{ location: { label:string, url?:string, note?:string, image?:string, previewImage?:string } | null }}
+   * @type {{
+   *   location: { label:string, url?:string, note?:string, image?:string, previewImage?:string } | null,
+   *   eyebrow?: string
+   * }}
    */
-  let { location } = $props();
+  let { location, eyebrow = "📍 Where we're going" } = $props();
 
   const img = $derived(location ? cardImage(location) : { src: '', isCustom: false });
   const domain = $derived(cardDomain(location?.url));
@@ -21,7 +24,7 @@
     <!-- Legibility scrim so the title reads over any photo. -->
     <div class="absolute inset-0 bg-gradient-to-t from-cocoa-900/75 via-cocoa-900/10 to-transparent"></div>
     <div class="absolute inset-x-0 bottom-0 p-3.5">
-      <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-white/80">📍 Where we're going</div>
+      <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-white/80">{eyebrow}</div>
       <div class="mt-0.5 font-display text-[19px] font-bold leading-tight text-white">{location.label}</div>
       {#if location.url}
         <a href={location.url} target="_blank" rel="noopener" class="mt-1 inline-block font-body text-xs font-extrabold text-white/90 underline">
