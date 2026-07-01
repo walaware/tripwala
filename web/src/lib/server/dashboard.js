@@ -73,10 +73,13 @@ export async function loadUserTrips(pb, userId) {
       Object.fromEntries(ids.map((id, i) => [`p${i}`, id]))
     );
 
-  const [trips, participants] = await Promise.all([
+  const [allTrips, participants] = await Promise.all([
     pb.collection('trips').getFullList({ filter: orFilter('id') }),
     pb.collection('participants').getFullList({ filter: orFilter('trip'), expand: 'user' })
   ]);
+  // Idea-stage ("someday") trips live on the Ideas wishlist, not the dated
+  // dashboard — they have no dates to bucket. Keep them out here.
+  const trips = allTrips.filter((t) => t.status !== 'idea');
 
   /** @type {Record<string, { members: number, going: number, maybe: number }>} */
   const stats = {};

@@ -85,8 +85,11 @@ export async function load({ params, locals, url }) {
   const pending = isOrganizer ? await listPending(pb, trip.id) : [];
   const invites = isOrganizer ? await listInvites(pb, trip.id) : [];
 
-  // Planning stage → idea-gathering view (dates + locations), not the full trip.
-  if ((trip.status || 'confirmed') === 'planning') {
+  // Planning + idea ("someday") stages → the idea-gathering canvas (dates +
+  // locations), not the full confirmed trip. An idea is a pre-planning trip;
+  // "promote to trip" moves it idea → planning.
+  const stage = trip.status || 'confirmed';
+  if (stage === 'planning' || stage === 'idea') {
     const planning = await loadPlanning(pb, trip, membership.id);
     return {
       planning: true,
@@ -102,7 +105,7 @@ export async function load({ params, locals, url }) {
         start_date: trip.start_date || '',
         end_date: trip.end_date || '',
         expense_link: trip.expense_link || '',
-        status: 'planning',
+        status: stage,
         hidden_sections: [],
         join_policy: trip.join_policy || 'instant',
         invite_visibility: trip.invite_visibility || 'everyone',

@@ -19,9 +19,10 @@
   const shell = createShell();
   const inTrip = $derived(shell.trip != null);
 
-  // App-level destinations (design repo → docs/apps/tripwala.md): Trips is the
-  // only live one; Calendar · Planner · Map are dimmed `soon` roadmap rows. Trips
-  // stays active while a trip is open (it opens as a contextual section nav).
+  // App-level destinations (design repo → docs/apps/tripwala.md): Trips and Ideas
+  // are live; Calendar · Planner · Map are dimmed `soon` roadmap rows. Trips stays
+  // active while a trip is open (it opens as a contextual section nav). Ideas is
+  // the undated "Someday" wishlist — trips still in the idea stage.
   const appNav = $derived([
     {
       key: 'trips',
@@ -29,6 +30,13 @@
       icon: '🧭',
       active: path === '/' || path === '/new' || tripToken != null,
       href: '/'
+    },
+    {
+      key: 'ideas',
+      label: 'Ideas',
+      icon: '💭',
+      active: path === '/ideas',
+      href: '/ideas'
     },
     { key: 'calendar', label: 'Calendar', icon: '📅', soon: true },
     { key: 'planner', label: 'Planner', icon: '🗓️', soon: true },

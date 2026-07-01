@@ -17,6 +17,9 @@
   const isOrganizer = $derived(data.isOrganizer);
   const participants = $derived(data.participants ?? []);
   const emoji = $derived(tripEmoji(trip.trip_type));
+  // An idea ("someday") is a pre-planning trip on the same canvas; promoting it
+  // is a one-field idea → planning change.
+  const isIdea = $derived(trip.status === 'idea');
 
   // Planning uses the same contextual shell as a confirmed trip — a section nav
   // over one scrollable page. (Dates/Where are voting modules, not the read-only
@@ -30,7 +33,8 @@
   ];
   const shell = useShell();
   const subtitle = $derived(
-    'In planning' + (participants.length ? ` · ${participants.length} interested` : '')
+    (isIdea ? 'Someday' : 'In planning') +
+      (participants.length ? ` · ${participants.length} interested` : '')
   );
   $effect(() => {
     shell.trip = { title: trip.name, subtitle, emoji, nav: PLAN_NAV };
@@ -49,6 +53,22 @@
   let confirming = $state(false);
   let confirmErr = $state('');
   let showConfirm = $state(false);
+  let promoting = $state(false);
+  let promoteErr = $state('');
+
+  // idea → planning: it leaves the Ideas wishlist and joins the dated dashboard.
+  async function promoteToTrip() {
+    if (promoting) return;
+    promoting = true;
+    promoteErr = '';
+    try {
+      await planAction(trip.share_token, { op: 'set_status', status: 'planning' });
+      await invalidateAll(); // status → planning; header/affordances update in place
+    } catch (_) {
+      promoteErr = 'Could not promote — please try again.';
+    }
+    promoting = false;
+  }
 
   function openConfirm() {
     cStart = (suggested?.start_date ?? '').slice(0, 10);
@@ -105,7 +125,7 @@
     <div class="min-w-0">
       <h1 class="truncate font-display text-[21px] font-bold leading-tight text-cocoa-900">{trip.name}</h1>
       <div class="truncate font-body text-[13px] font-extrabold text-coral-600">
-        🌱 In planning{#if participants.length} · {participants.length} interested{/if}
+        {#if isIdea}💭 Someday{:else}🌱 In planning{/if}{#if participants.length} · {participants.length} interested{/if}
       </div>
     </div>
   </div>
@@ -127,7 +147,20 @@
         </p>
       {/if}
 
-      {#if isOrganizer}
+      {#if isOrganizer && isIdea}
+        <div class="mt-3.5 border-t border-sand-200 pt-3.5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="font-display text-[15px] font-semibold text-cocoa-900">Still just an idea 💭</div>
+              <div class="font-body text-[13px] font-bold text-cocoa-500">Ready to make it real? Promote it and start gathering dates & a crew.</div>
+            </div>
+            <Button variant="primary" size="md" onclick={promoteToTrip} disabled={promoting}>
+              {promoting ? 'Promoting…' : 'Promote to trip'}
+            </Button>
+          </div>
+          {#if promoteErr}<p class="mt-2 font-body text-sm font-bold text-berry-600">{promoteErr}</p>{/if}
+        </div>
+      {:else if isOrganizer}
         <div class="mt-3.5 border-t border-sand-200 pt-3.5">
           {#if !showConfirm}
             <div class="flex items-center justify-between gap-3">

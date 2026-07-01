@@ -12,6 +12,7 @@
   const values = $derived(form?.values ?? {});
 
   const STAGES = [
+    ['idea', '💭 Someday', 'Just an idea — save it to your wishlist, no dates'],
     ['planning', '🌱 Planning', "Gather dates & a place with the group first"],
     ['confirmed', '✅ Confirmed', "It's happening — I have the details"],
     ['completed', '🗓️ Already happened', 'Just documenting a past trip']
@@ -126,6 +127,10 @@
           {#if stage === 'planning'}
             <p class="mt-1.5 font-body text-xs font-bold text-cocoa-500">
               Dates & location are optional — you'll gather them with the group.
+            </p>
+          {:else if stage === 'idea'}
+            <p class="mt-1.5 font-body text-xs font-bold text-cocoa-500">
+              Everything below is optional — it's just a someday idea. Find it later under <strong>Ideas 💭</strong>.
             </p>
           {/if}
         </div>

@@ -88,7 +88,7 @@ export async function POST({ params, request, locals }) {
       case 'set_status': {
         ownerOnly();
         const s = String(body.status ?? '');
-        if (!['planning', 'confirmed', 'completed'].includes(s)) throw error(400, 'Bad status');
+        if (!['idea', 'planning', 'confirmed', 'completed'].includes(s)) throw error(400, 'Bad status');
         await pb.collection('trips').update(trip.id, { status: s });
         break;
       }
