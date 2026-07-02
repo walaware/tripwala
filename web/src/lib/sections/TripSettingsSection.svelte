@@ -126,6 +126,14 @@
     }
   }
 
+  // Move the trip back to the Ideas wishlist (status='idea'). Reopens the
+  // planning canvas; reversible via "promote" on the Ideas page.
+  async function demoteToIdea() {
+    if (busy) return;
+    if (!confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
+    await act('demote_to_idea', {}, 'demote');
+  }
+
   const hidden = $derived(new Set(trip.hidden_sections ?? []));
   const ownerUrl = $derived(`${page.url.origin}/${shareToken}/edit?owner=${trip.owner_token}`);
   const inviteUrl = $derived(`${page.url.origin}/${shareToken}`);
@@ -431,6 +439,21 @@
         </Button>
       </div>
     </div>
+
+    <!-- Organizer: move the trip back to the Ideas wishlist (any stage → idea). -->
+    {#if ownerMode && trip.status !== 'idea'}
+      <div class="mt-4 border-t border-sand-200 pt-4">
+        <div class="mb-1 font-display text-[15px] font-bold text-text-strong">Trip stage</div>
+        <div class="mb-2.5 font-body text-[12.5px] font-bold text-text-muted">
+          Not happening yet? Move it back to your Ideas wishlist — everything's kept, it just leaves the calendar.
+        </div>
+        <button
+          type="button" disabled={busy === 'demote'}
+          onclick={demoteToIdea}
+          class="flex items-center gap-1.5 rounded-full border-2 border-sand-300 px-3.5 py-1.5 font-body text-[13px] font-extrabold text-cocoa-700 transition hover:border-coral-300 disabled:opacity-50"
+        >💭 {busy === 'demote' ? 'Moving…' : 'Move back to Ideas'}</button>
+      </div>
+    {/if}
 
     <!-- Organizer: restore hidden sections. Hiding now happens from each
          section's own "Hide" button, so this only appears once something's

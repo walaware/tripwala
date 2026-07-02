@@ -698,6 +698,16 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
+      // Move a trip back to the "Someday" Ideas wishlist (status='idea') from any
+      // later stage. Non-destructive — everything is kept; it just drops off the
+      // dated dashboard and reopens the planning canvas. Organizer only, mirrors
+      // the idea→planning "promote". (Reversible via promote.)
+      case 'demote_to_idea': {
+        if (!isOrganizer) throw error(403, 'Only organizers can change the trip stage');
+        if (trip.status !== 'idea') await pb.collection('trips').update(trip.id, { status: 'idea' });
+        break;
+      }
+
       // Revoke a pending co-organizer invite.
       case 'revoke_invite': {
         if (!isOrganizer) throw error(403, 'Only organizers can revoke invites');
