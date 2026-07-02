@@ -3,7 +3,7 @@
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import LocationHeroCard from '$lib/ui/LocationHeroCard.svelte';
   import WeatherCard from '$lib/ui/WeatherCard.svelte';
-  import { tripLength } from '$lib/format.js';
+  import { tripLength, tripEmoji, tripTypeLabel } from '$lib/format.js';
 
   /**
    * @type {{
@@ -61,14 +61,47 @@
     return -days < tripLength(trip.start_date, trip.end_date).days ? 'now' : 'wrapped';
   });
 
-  const tiles = $derived([
-    { label: 'Countdown', value: countdown },
-    { label: 'Crew', value: `${going} going` },
-    { label: 'Claimed', value: `${claimed}/${claimable}` }
-  ]);
+  // The three stat tiles adapt to the trip: the "Claimed" tile only makes sense
+  // when Gear or Food is actually in play, and "Crew" isn't interesting for a
+  // solo/couple trip. We drop the ones that don't fit and pad with lighter,
+  // always-available tiles so the row stays at three.
+  const hidden = $derived(Array.isArray(trip.hidden_sections) ? trip.hidden_sections : []);
+  const gearFoodHidden = $derived(hidden.includes('gear') && hidden.includes('food'));
+  const showClaimed = $derived(claimable > 0 && !gearFoodHidden);
+  const crewSize = $derived(participants.length);
+  const showCrew = $derived(crewSize > 2);
+
+  const nights = $derived(tripLength(trip.start_date, trip.end_date).nights);
+  const lengthTile = $derived({
+    label: 'Length',
+    value: nights > 0 ? `${nights} night${nights === 1 ? '' : 's'}` : 'Day trip'
+  });
+  const vibeTile = $derived({
+    label: 'Vibe',
+    value: `${tripEmoji(trip.trip_type)} ${tripTypeLabel(trip.trip_type)}`
+  });
+  // A little delight when it's just you (or the two of you) — fills the slot the
+  // Crew tile vacates on an intimate trip.
+  const partyTile = $derived.by(() => {
+    if (crewSize <= 1) return { label: 'Trip', value: 'Solo 🎒' };
+    if (crewSize === 2) return { label: 'Party of', value: 'two 💕' };
+    return null;
+  });
+
+  const tiles = $derived.by(() => {
+    const out = [{ label: 'Countdown', value: countdown }];
+    if (showCrew) out.push({ label: 'Crew', value: `${going} going` });
+    if (showClaimed) out.push({ label: 'Claimed', value: `${claimed}/${claimable}` });
+    // Pad to three with fun fallbacks (party first so couples get the cute one).
+    for (const t of [partyTile, lengthTile, vibeTile]) {
+      if (out.length >= 3) break;
+      if (t) out.push(t);
+    }
+    return out.slice(0, 3);
+  });
 </script>
 
-<SectionHeader emoji="✨" title="What's happening" {collapsed} {onToggle} />
+<SectionHeader emoji="✨" title="Overview" {collapsed} {onToggle} />
 <Card>
   <!-- Picked location's picture (if any), carried over from planning. -->
   <LocationHeroCard location={trip.pickedLocation ?? null} />
@@ -82,7 +115,7 @@
     {/each}
   </div>
 
-  {#if claimable}
+  {#if showClaimed}
     <div class="mt-4">
       <div class="mb-1.5 flex items-center justify-between">
         <span class="font-body text-[12.5px] font-extrabold text-text-muted">Gear &amp; food claimed</span>
