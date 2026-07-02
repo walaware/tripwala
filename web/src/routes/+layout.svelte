@@ -11,6 +11,8 @@
 
   const user = $derived(data.user);
   const path = $derived(page.url.pathname);
+  // Incoming friend-request count (loaded on the dashboard) → nav badge.
+  const friendRequests = $derived(page.data.friendRequests ?? 0);
   // The trip currently in view, if any — settings is a per-trip surface.
   const tripToken = $derived(page.params.share_token ?? null);
 
@@ -38,7 +40,21 @@
       active: path === '/ideas',
       href: '/ideas'
     },
-    { key: 'calendar', label: 'Calendar', icon: '📅', soon: true },
+    {
+      key: 'calendar',
+      label: 'Calendar',
+      icon: '📅',
+      active: path === '/calendar',
+      href: '/calendar'
+    },
+    {
+      key: 'friends',
+      label: 'Friends',
+      icon: '👋',
+      active: path === '/friends' || path.startsWith('/add-friend'),
+      href: '/friends',
+      badge: friendRequests > 0 ? friendRequests : false
+    },
     { key: 'planner', label: 'Planner', icon: '🗓️', soon: true },
     { key: 'map', label: 'Map', icon: '🗺️', soon: true }
   ]);

@@ -313,6 +313,15 @@
         <button type="button" disabled={busy === 'invite_vis'} onclick={() => act('set_invite_visibility', { value: 'organizers' }, 'invite_vis')} class="{seg} {inviteVisibility === 'organizers' ? segOn : segOff}">Organizers only</button>
       </div>
 
+      <div class="mt-3 font-body text-[12px] font-extrabold uppercase tracking-wide text-cocoa-500">On friends' calendars</div>
+      <div class="mt-1.5 flex gap-2">
+        <button type="button" disabled={busy === 'visibility'} onclick={() => act('set_visibility', { value: 'private' }, 'visibility')} class="{seg} {(trip.visibility || 'private') !== 'friends' ? segOn : segOff}">Private</button>
+        <button type="button" disabled={busy === 'visibility'} onclick={() => act('set_visibility', { value: 'friends' }, 'visibility')} class="{seg} {trip.visibility === 'friends' ? segOn : segOff}">Friends can see</button>
+      </div>
+      <p class="mt-1.5 font-body text-[12px] font-bold text-text-muted">
+        When on, your friends see this trip's name, dates, and place on their calendar — never the plans inside.
+      </p>
+
       {#if pending.length}
         <div class="mt-3.5 rounded-xl bg-sun-100 p-3">
           <div class="mb-1.5 font-display text-[14px] font-bold text-cocoa-900">Requests to join ({pending.length})</div>

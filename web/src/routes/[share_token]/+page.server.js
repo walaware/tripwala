@@ -8,6 +8,7 @@ import { tripTeaser } from '$lib/server/teaser.js';
 import { tripOg } from '$lib/server/og.js';
 import { loadPlanning } from '$lib/server/planning.js';
 import { cloneTrip } from '$lib/server/cloneTrip.js';
+import { listInvitableFriends } from '$lib/server/invitations.js';
 
 /**
  * Resolve a trip row by share token, or throw the right HTTP error.
@@ -126,6 +127,8 @@ export async function load({ params, locals, url }) {
   // Confirmed / completed → full trip. Surface any unclaimed entries so a member
   // who came in under a fresh account can still merge into their pre-auth name.
   const data = await loadTripByShareToken(params.share_token, membership.id);
+  // Friends you can invite in a tap (accepted friends not already on the trip).
+  const invitableFriends = await listInvitableFriends(pb, locals.user.id, trip.id);
   return {
     ...data,
     status: trip.status || 'confirmed',
@@ -134,6 +137,7 @@ export async function load({ params, locals, url }) {
     orphans,
     pending,
     invites,
+    invitableFriends,
     emailEnabled: isMailConfigured(),
     immichEnabled: await immichConfigured(),
     og

@@ -3,6 +3,7 @@ import { superuserPb } from '$lib/server/pocketbase.js';
 import { getMembership } from '$lib/server/membership.js';
 import { isMailConfigured, sendInviteEmail } from '$lib/server/mailer.js';
 import { immichConfigured, createTripAlbum, syncAlbumName, parseShareLink } from '$lib/server/immich.js';
+import { inviteFriendToTrip } from '$lib/server/invitations.js';
 
 // All trip mutations funnel through here. PocketBase collection rules are locked
 // to superuser-only, so the browser cannot write directly — it POSTs an op to
@@ -654,6 +655,46 @@ export async function POST({ params, request, locals, url }) {
         const pin = await inTrip('map_pins', String(body.pinId ?? ''));
         if (!isOrganizer && pin.created_by !== me.id) throw error(403, 'Only the person who added a pin (or an organizer) can remove it');
         await pb.collection('map_pins').delete(pin.id);
+        break;
+      }
+
+      // ---- Friend-based invites & calendar visibility (#30) ----
+
+      // Invite a friend (a known account) to this trip → lands on their dashboard
+      // as an Accept/Decline card. Any member may invite, but a guest can only
+      // invite people they're already friends with (enforced in the helper);
+      // organizers may invite anyone and may grant an organizer role.
+      case 'invite_friend': {
+        if (!isOrganizer && (trip.invite_visibility || 'everyone') === 'organizers') {
+          throw error(403, 'Only organizers can invite to this trip');
+        }
+        const friendUserId = String(body.userId ?? '').trim();
+        if (!friendUserId) throw error(400, 'Pick a friend to invite');
+        const role = body.role === 'organizer' ? 'organizer' : 'guest';
+        const res = await inviteFriendToTrip(pb, trip, me, friendUserId, role);
+        if (!res.ok && res.reason === 'not_friends') {
+          throw error(403, 'You can only invite people you’re friends with');
+        }
+        return json({ ok: res.ok, reason: res.reason ?? null });
+      }
+
+      // Revoke a pending trip invitation (organizer only).
+      case 'revoke_trip_invitation': {
+        if (!isOrganizer) throw error(403, 'Only organizers can revoke invitations');
+        const inv = await pb
+          .collection('trip_invitations')
+          .getOne(String(body.invitationId ?? ''))
+          .catch(() => null);
+        if (inv && inv.trip === trip.id) await pb.collection('trip_invitations').delete(inv.id);
+        break;
+      }
+
+      // Calendar visibility: private (members-only) or friends (accepted friends
+      // of members see a read-only teaser on their calendar). Organizer only.
+      case 'set_visibility': {
+        if (!isOrganizer) throw error(403, 'Only organizers can change this');
+        const value = body.value === 'friends' ? 'friends' : 'private';
+        await pb.collection('trips').update(trip.id, { visibility: value });
         break;
       }
 

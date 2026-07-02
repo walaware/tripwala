@@ -97,7 +97,7 @@ discussion live in
 - [ ] [#27 AI features — invisible, BYO-token](https://github.com/walaware/tripwala/issues/27)
 - [ ] [#28 MCP / API layer](https://github.com/walaware/tripwala/issues/28) *(epic)*
 - [ ] [#29 Activities section vs gear](https://github.com/walaware/tripwala/issues/29)
-- [ ] [#30 Friend graph — invite-by-friend](https://github.com/walaware/tripwala/issues/30) *(optional)*
+- [x] ~~[#30 Friend graph — invite-by-friend](https://github.com/walaware/tripwala/issues/30)~~ — friendships + invite-friends-to-trips + friends-on-calendar ✅
 
 ---
 

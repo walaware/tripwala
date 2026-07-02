@@ -1,11 +1,37 @@
 <script>
-  import { Button, Wordmark, AppIcon } from '@walaware/design';
+  import { Button, Wordmark, AppIcon, RequestCard } from '@walaware/design';
+  import { applyAction, deserialize } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import TripCard from '$lib/TripCard.svelte';
+  import { fmtDateRange } from '$lib/format.js';
 
   /** @type {{ data: import('./$types').PageData }} */
   let { data } = $props();
 
   const trips = $derived(data.trips);
+  const invitations = $derived(data.invitations ?? []);
+
+  // Drive the design components' callbacks through the page's form actions.
+  /** @param {string} action @param {Record<string,string>} fields */
+  async function submitAction(action, fields) {
+    const body = new FormData();
+    for (const [k, v] of Object.entries(fields)) body.set(k, v);
+    const res = await fetch(`/?/${action}`, { method: 'POST', body });
+    /** @type {any} */
+    const result = deserialize(await res.text());
+    if (result.type === 'redirect') {
+      window.location.href = result.location;
+      return;
+    }
+    await applyAction(result);
+    await invalidateAll();
+  }
+
+  /** @param {any} inv */
+  const inviteMeta = (inv) =>
+    [fmtDateRange(inv.trip.start_date, inv.trip.end_date), inv.trip.location, inv.invitedBy ? `from ${inv.invitedBy}` : '']
+      .filter(Boolean)
+      .join(' · ');
   const total = $derived(
     trips ? trips.current.length + trips.upcoming.length + trips.past.length : 0
   );
@@ -28,6 +54,26 @@
       </div>
       <Button href="/new" variant="primary" size="md">＋ New trip</Button>
     </div>
+
+    {#if invitations.length}
+      <section class="mt-6">
+        <h2 class="mb-3 font-display text-[13px] font-extrabold uppercase tracking-wider text-text-muted">
+          Invitations
+        </h2>
+        <div class="flex flex-col gap-3">
+          {#each invitations as inv (inv.id)}
+            <RequestCard
+              emoji="🧭"
+              title={inv.trip.name}
+              meta={inviteMeta(inv)}
+              acceptLabel="Join"
+              onAccept={() => submitAction('acceptInvite', { id: inv.id })}
+              onDecline={() => submitAction('declineInvite', { id: inv.id })}
+            />
+          {/each}
+        </div>
+      </section>
+    {/if}
 
     {#if total === 0}
       <div class="mt-8 rounded-2xl bg-surface-card p-8 text-center shadow-card">

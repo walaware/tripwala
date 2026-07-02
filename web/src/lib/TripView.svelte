@@ -281,7 +281,7 @@
   {/if}
   {#if !isHidden('crew')}
     <section id="crew" class="trip-section" class:is-collapsed={collapsed.has('crew')}>
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} onHide={hideHandler('crew')} collapsed={collapsed.has('crew')} onToggle={() => toggleCollapse('crew')} />
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} onHide={hideHandler('crew')} collapsed={collapsed.has('crew')} onToggle={() => toggleCollapse('crew')} />
     </section>
   {/if}
   {#if !isHidden('gear')}
