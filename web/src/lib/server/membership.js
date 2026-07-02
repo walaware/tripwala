@@ -29,8 +29,9 @@ export async function getMembership(pb, tripId, userId) {
  * @param {import('pocketbase').default} pb superuser client
  * @param {{ id: string, created_by?: string, join_policy?: string }} trip
  * @param {{ id: string, name: string, email?: string }} user
+ * @param {{ grantRole?: string, skipApproval?: boolean }} [opts] direct-invite grants
  */
-export async function joinTrip(pb, trip, user) {
+export async function joinTrip(pb, trip, user, opts = {}) {
   const existing = await getMembership(pb, trip.id, user.id);
   if (existing) return existing;
 
@@ -39,7 +40,10 @@ export async function joinTrip(pb, trip, user) {
   // skips approval (the organizer vouched for them). Consumed once applied.
   const invite = await findInvite(pb, trip.id, user.email);
   const invitedOrganizer = invite?.role === 'organizer';
-  const role = isCreator || invitedOrganizer ? 'organizer' : 'guest';
+  // A direct trip invitation (accepted from the dashboard) may grant its role and
+  // bypass approval — the inviter is already a member who vouched for them.
+  const role =
+    opts.grantRole === 'organizer' || isCreator || invitedOrganizer ? 'organizer' : 'guest';
 
   // Adopt an unclaimed participant with the same name, so signing in links to
   // the work already done under that name (helps migrate pre-auth trips). They
@@ -63,7 +67,11 @@ export async function joinTrip(pb, trip, user) {
 
   // Fresh link-join: pending only if approval is required AND they weren't
   // explicitly invited (the creator and invitees bypass the queue).
-  const needsApproval = !isCreator && !invite && (trip.join_policy || 'instant') === 'approval';
+  const needsApproval =
+    !isCreator &&
+    !invite &&
+    !opts.skipApproval &&
+    (trip.join_policy || 'instant') === 'approval';
 
   const { randomUUID } = await import('node:crypto');
   const m = await pb.collection('participants').create({
