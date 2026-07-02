@@ -167,6 +167,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       hidden_sections: Array.isArray(trip.hidden_sections) ? trip.hidden_sections : [],
       join_policy: trip.join_policy || 'instant',
       invite_visibility: trip.invite_visibility || 'everyone',
+      visibility: trip.visibility || 'private',
       min_nights: trip.min_nights || 0,
       immich_album_url: trip.immich_album_url || '',
       // Whether an app-created album (id known → name stays in sync) vs a

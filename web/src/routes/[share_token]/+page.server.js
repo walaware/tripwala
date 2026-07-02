@@ -110,6 +110,7 @@ export async function load({ params, locals, url }) {
         hidden_sections: [],
         join_policy: trip.join_policy || 'instant',
         invite_visibility: trip.invite_visibility || 'everyone',
+        visibility: trip.visibility || 'private',
         min_nights: trip.min_nights || 0
       },
       membership: membershipOut,
