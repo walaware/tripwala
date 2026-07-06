@@ -9,6 +9,8 @@ export interface SessionUser {
   /** Optional name-display prefs (see displayName.js); default = first name only. */
   nickname?: string;
   show_last_name?: boolean;
+  /** Temperature unit for the weather forecast (see prefs.js); '' reads as 'F'. */
+  temp_unit?: string;
 }
 
 declare global {

@@ -18,12 +18,14 @@ export async function load({ locals }) {
   let avatar = locals.user.avatar || undefined;
   let nickname = locals.user.nickname || '';
   let showLastName = locals.user.show_last_name === true;
+  let tempUnit = locals.user.temp_unit || '';
   try {
     const pb = await superuserPb();
     const rec = await pb.collection('users').getOne(locals.user.id);
     avatar = avatarUrl(rec);
     nickname = rec.nickname || '';
     showLastName = rec.show_last_name === true;
+    tempUnit = rec.temp_unit || '';
   } catch (_) {
     /* fall back to the cookie copy */
   }
@@ -33,6 +35,7 @@ export async function load({ locals }) {
     avatar,
     nickname,
     showLastName,
+    tempUnit,
     isAdmin: await isAdmin(locals.user)
   };
 }
@@ -92,6 +95,22 @@ export const actions = {
       await pb.collection('users').update(locals.user.id, { nickname, show_last_name });
     } catch (_) {
       return fail(400, { error: 'Could not save your name settings.' });
+    }
+    await refreshSession(locals);
+    throw redirect(303, '/profile');
+  },
+
+  // App preferences. Currently just the forecast temperature unit; add future
+  // prefs here (validate against a whitelist, same as this one).
+  units: async ({ request, locals }) => {
+    if (!locals.user) return fail(401, { error: 'Please sign in again.' });
+    const form = await request.formData();
+    const temp_unit = form.get('temp_unit') === 'C' ? 'C' : 'F';
+    const pb = await superuserPb();
+    try {
+      await pb.collection('users').update(locals.user.id, { temp_unit });
+    } catch (_) {
+      return fail(400, { error: 'Could not save your preferences.' });
     }
     await refreshSession(locals);
     throw redirect(303, '/profile');

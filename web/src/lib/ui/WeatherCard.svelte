@@ -4,15 +4,29 @@
   // fetch when the trip has a location and starts inside the ~16-day forecast
   // horizon; otherwise the card renders nothing. All failures are silent.
   import { fmtWeekday, fmtMonthDay } from '$lib/format.js';
+  import { page } from '$app/state';
+  import { tempUnit, openMeteoUnit } from '$lib/prefs.js';
 
   /** @type {{ location?: string, startDate?: string, endDate?: string }} */
   let { location = '', startDate = '', endDate = '' } = $props();
+
+  // The viewer's temperature-unit preference (F/C). Anonymous share-link viewers
+  // have no user → falls back to F.
+  const unit = $derived(tempUnit(page.data?.user));
 
   /** @type {'idle'|'loading'|'ready'} */
   let phase = $state('idle');
   /** @type {Array<{ date: string, code: number, tmax: number, tmin: number }>} */
   let days = $state([]);
   let place = $state('');
+
+  // The last input signature we fetched for. The trip page short-polls (~4s), so
+  // this $effect re-runs constantly with unchanged inputs; without this guard it
+  // would refetch and flash the card (idle → loading → ready) every few seconds.
+  // Plain variables (not $state) so reading/writing them here creates no
+  // dependency. `reqId` supersedes in-flight fetches when inputs actually change.
+  let lastKey = '';
+  let reqId = 0;
 
   // WMO weather code → [emoji, label]. Grouped to the buckets that matter.
   /** @type {Record<number, [string, string]>} */
@@ -47,11 +61,22 @@
     const loc = (location || '').trim();
     const start = startDate || '';
     const end = endDate || start;
+    const u = unit;
+    // Skip when nothing that affects the forecast changed — keeps the already-
+    // rendered card in place through the trip page's short-poll re-renders.
+    const key = `${loc}|${start}|${end}|${u}`;
+    if (key === lastKey) return;
+    lastKey = key;
+    // Each real fetch gets a monotonic id; async results only apply if theirs is
+    // still the latest (a newer inputs-change supersedes an in-flight one). We
+    // deliberately don't cancel via effect-cleanup: cleanup runs before *every*
+    // re-run, including the poll re-runs that early-return above, which would
+    // abort a still-in-flight first fetch and leave the card blank forever.
+    const myId = ++reqId;
     if (!loc || !inWindow(start)) {
       phase = 'idle';
       return;
     }
-    let cancelled = false;
     phase = 'loading';
     // Open-Meteo's gazetteer matches place names, not "Place, ST" strings — so
     // try the full location, then fall back to the part before the first comma
@@ -67,15 +92,16 @@
       try {
         const head = loc.split(',')[0].trim();
         const hit = (await geocode(loc)) || (head && head !== loc ? await geocode(head) : null);
+        if (myId !== reqId) return;
         if (!hit) {
-          if (!cancelled) phase = 'idle';
+          phase = 'idle';
           return;
         }
         const sd = start.slice(0, 10);
         const ed = (end || start).slice(0, 10);
         const fc = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${hit.latitude}&longitude=${hit.longitude}` +
-            `&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit` +
+            `&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=${openMeteoUnit(u)}` +
             `&timezone=auto&start_date=${sd}&end_date=${ed}`
         ).then((r) => r.json());
         const t = fc?.daily?.time ?? [];
@@ -85,18 +111,14 @@
           tmax: Math.round(fc.daily.temperature_2m_max[i]),
           tmin: Math.round(fc.daily.temperature_2m_min[i])
         }));
-        if (!cancelled) {
-          days = rows;
-          place = [hit.name, hit.admin1, hit.country_code].filter(Boolean).slice(0, 2).join(', ');
-          phase = rows.length ? 'ready' : 'idle';
-        }
+        if (myId !== reqId) return;
+        days = rows;
+        place = [hit.name, hit.admin1, hit.country_code].filter(Boolean).slice(0, 2).join(', ');
+        phase = rows.length ? 'ready' : 'idle';
       } catch (_) {
-        if (!cancelled) phase = 'idle';
+        if (myId === reqId) phase = 'idle';
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   });
 </script>
 
@@ -105,7 +127,7 @@
     <div class="mb-2 flex items-center gap-1.5">
       <span class="font-body text-[12px] font-extrabold text-cocoa-500">🌤️ Forecast{#if place} · {place}{/if}</span>
     </div>
-    <div class="-mx-1 flex gap-2 overflow-x-auto px-1 [scrollbar-width:thin]">
+    <div class="-mx-1 flex justify-center-safe gap-2 overflow-x-auto px-1 [scrollbar-width:thin]">
       {#each days as d (d.date)}
         {@const w = wmo(d.code)}
         <div class="flex w-[68px] flex-none flex-col items-center rounded-xl bg-white px-1 py-2 text-center">

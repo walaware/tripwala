@@ -47,7 +47,8 @@ const handleAuth = async ({ event, resolve }) => {
         name: rec.name ?? '',
         avatar: avatarUrl(rec) ?? '',
         nickname: rec.nickname ?? '',
-        show_last_name: rec.show_last_name === true
+        show_last_name: rec.show_last_name === true,
+        temp_unit: rec.temp_unit ?? ''
       }
     : null;
 

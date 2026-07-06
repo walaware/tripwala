@@ -24,6 +24,28 @@
     };
   };
 
+  // App preferences. Temperature unit for the forecast (default F). Auto-saves on
+  // change — the hidden submit is what the segmented control's inputs trigger.
+  const UNITS = /** @type {const} */ (['F', 'C']);
+  // svelte-ignore state_referenced_locally
+  let tempUnit = $state(data.tempUnit === 'C' ? 'C' : 'F');
+  let savingUnits = $state(false);
+  /** @type {HTMLFormElement | undefined} */
+  let unitsForm = $state();
+  /** @param {'F' | 'C'} u */
+  function pickUnit(u) {
+    if (u === tempUnit) return;
+    tempUnit = u;
+    unitsForm?.requestSubmit();
+  }
+  const saveUnits = () => {
+    savingUnits = true;
+    return async (/** @type {{ update: () => Promise<void> }} */ { update }) => {
+      await update();
+      savingUnits = false;
+    };
+  };
+
   // A hidden, enhanced form does the actual multipart upload (collections are
   // superuser-locked; the action scopes the write to locals.user.id). AvatarUpload
   // only hands us the picked File — we feed it into this form's input and submit.
@@ -122,6 +144,43 @@
             {savingPrefs ? 'Saving…' : 'Save name'}
           </Button>
         </div>
+      </form>
+    </Card>
+  </div>
+
+  <!-- App preferences: forecast temperature unit (room to grow). -->
+  <div class="mt-4">
+    <Card>
+      <div class="font-display text-[15px] font-bold text-text-strong">Preferences</div>
+      <p class="mt-0.5 font-body text-[12.5px] font-bold text-text-muted">
+        How things show up for you across your trips.
+      </p>
+      <form bind:this={unitsForm} method="POST" action="?/units" use:enhance={saveUnits} class="mt-3">
+        <div class="flex items-center justify-between gap-3">
+          <span class="min-w-0">
+            <span class="block font-body text-[14px] font-extrabold text-text-strong">Temperature</span>
+            <span class="block font-body text-[12px] font-bold text-text-muted">
+              Units in the trip weather forecast
+            </span>
+          </span>
+          <div class="flex flex-none rounded-lg bg-sand-100 p-0.5" role="group" aria-label="Temperature unit">
+            {#each UNITS as u}
+              <button
+                type="button"
+                onclick={() => pickUnit(u)}
+                disabled={savingUnits}
+                aria-pressed={tempUnit === u}
+                class="rounded-md px-3.5 py-1.5 font-body text-[13px] font-extrabold transition-colors {tempUnit ===
+                u
+                  ? 'bg-white text-cocoa-900 shadow-sm'
+                  : 'text-cocoa-400'}"
+              >
+                °{u}
+              </button>
+            {/each}
+          </div>
+        </div>
+        <input type="hidden" name="temp_unit" value={tempUnit} />
       </form>
     </Card>
   </div>
