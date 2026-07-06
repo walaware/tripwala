@@ -14,6 +14,21 @@
   // have no user → falls back to F.
   const unit = $derived(tempUnit(page.data?.user));
 
+  // How many placeholder pills the loading skeleton shows — the trip's own day
+  // span (inclusive), clamped, so the skeleton matches the forecast it precedes.
+  const skeletonCount = $derived.by(() => {
+    const s = new Date(startDate || '');
+    const e = new Date(endDate || startDate || '');
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 3;
+    const days =
+      Math.round(
+        (Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()) -
+          Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate())) /
+          86400000
+      ) + 1;
+    return Math.min(Math.max(days, 1), 8);
+  });
+
   /** @type {'idle'|'loading'|'ready'} */
   let phase = $state('idle');
   /** @type {Array<{ date: string, code: number, tmax: number, tmin: number }>} */
@@ -122,7 +137,26 @@
   });
 </script>
 
-{#if phase === 'ready'}
+{#if phase === 'loading'}
+  <!-- Loading skeleton: mirrors the ready layout (label + a strip of pills) with
+       a soft pulse, so the card holds its space instead of popping in. -->
+  <div class="mt-4 rounded-2xl p-3" style="background: var(--color-sand-100)" aria-hidden="true">
+    <div class="mb-2 flex items-center gap-1.5">
+      <span class="font-body text-[12px] font-extrabold text-cocoa-500">🌤️ Forecast</span>
+      <span class="h-2.5 w-20 animate-pulse rounded-full bg-sand-300"></span>
+    </div>
+    <div class="-mx-1 flex justify-center-safe gap-2 overflow-hidden px-1">
+      {#each Array.from({ length: skeletonCount }) as _, i (i)}
+        <div class="flex w-[68px] flex-none animate-pulse flex-col items-center gap-1.5 rounded-xl bg-white px-1 py-2">
+          <span class="h-2.5 w-8 rounded bg-sand-300"></span>
+          <span class="my-0.5 h-6 w-6 rounded-full bg-sand-300"></span>
+          <span class="h-3 w-6 rounded bg-sand-300"></span>
+          <span class="h-2.5 w-5 rounded bg-sand-300"></span>
+        </div>
+      {/each}
+    </div>
+  </div>
+{:else if phase === 'ready'}
   <div class="mt-4 rounded-2xl bg-sky-100 p-3" style="background: var(--color-sand-100)">
     <div class="mb-2 flex items-center gap-1.5">
       <span class="font-body text-[12px] font-extrabold text-cocoa-500">🌤️ Forecast{#if place} · {place}{/if}</span>

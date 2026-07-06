@@ -24,20 +24,14 @@
     };
   };
 
-  // App preferences. Temperature unit for the forecast (default F). Auto-saves on
-  // change — the hidden submit is what the segmented control's inputs trigger.
+  // App preferences. Temperature unit for the forecast (default F). Each unit is
+  // its own submit button carrying name="temp_unit" value=…, so the click submits
+  // that exact value — no hidden input to race against Svelte's DOM flush. The
+  // `tempUnit` state only drives the optimistic pressed styling.
   const UNITS = /** @type {const} */ (['F', 'C']);
   // svelte-ignore state_referenced_locally
   let tempUnit = $state(data.tempUnit === 'C' ? 'C' : 'F');
   let savingUnits = $state(false);
-  /** @type {HTMLFormElement | undefined} */
-  let unitsForm = $state();
-  /** @param {'F' | 'C'} u */
-  function pickUnit(u) {
-    if (u === tempUnit) return;
-    tempUnit = u;
-    unitsForm?.requestSubmit();
-  }
   const saveUnits = () => {
     savingUnits = true;
     return async (/** @type {{ update: () => Promise<void> }} */ { update }) => {
@@ -155,7 +149,7 @@
       <p class="mt-0.5 font-body text-[12.5px] font-bold text-text-muted">
         How things show up for you across your trips.
       </p>
-      <form bind:this={unitsForm} method="POST" action="?/units" use:enhance={saveUnits} class="mt-3">
+      <form method="POST" action="?/units" use:enhance={saveUnits} class="mt-3">
         <div class="flex items-center justify-between gap-3">
           <span class="min-w-0">
             <span class="block font-body text-[14px] font-extrabold text-text-strong">Temperature</span>
@@ -166,8 +160,10 @@
           <div class="flex flex-none rounded-lg bg-sand-100 p-0.5" role="group" aria-label="Temperature unit">
             {#each UNITS as u}
               <button
-                type="button"
-                onclick={() => pickUnit(u)}
+                type="submit"
+                name="temp_unit"
+                value={u}
+                onclick={() => (tempUnit = u)}
                 disabled={savingUnits}
                 aria-pressed={tempUnit === u}
                 class="rounded-md px-3.5 py-1.5 font-body text-[13px] font-extrabold transition-colors {tempUnit ===
@@ -180,7 +176,6 @@
             {/each}
           </div>
         </div>
-        <input type="hidden" name="temp_unit" value={tempUnit} />
       </form>
     </Card>
   </div>
