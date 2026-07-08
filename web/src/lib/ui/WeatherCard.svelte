@@ -3,6 +3,7 @@
   // key, CORS-enabled — so no server load, no SSRF surface, no schema). We only
   // fetch when the trip has a location and starts inside the ~16-day forecast
   // horizon; otherwise the card renders nothing. All failures are silent.
+  import { Skeleton } from '@walaware/design';
   import { fmtWeekday, fmtMonthDay } from '$lib/format.js';
   import { page } from '$app/state';
   import { tempUnit, openMeteoUnit } from '$lib/prefs.js';
@@ -138,20 +139,21 @@
 </script>
 
 {#if phase === 'loading'}
-  <!-- Loading skeleton: mirrors the ready layout (label + a strip of pills) with
-       a soft pulse, so the card holds its space instead of popping in. -->
-  <div class="mt-4 rounded-2xl p-3" style="background: var(--color-sand-100)" aria-hidden="true">
+  <!-- Loading skeleton: mirrors the ready layout (label + a strip of pills) using
+       the shared @walaware/design Skeleton, so the card holds its space instead of
+       popping in. aria-busy marks the region; each Skeleton is aria-hidden. -->
+  <div class="mt-4 rounded-2xl p-3" style="background: var(--color-sand-100)" aria-busy="true">
     <div class="mb-2 flex items-center gap-1.5">
       <span class="font-body text-[12px] font-extrabold text-cocoa-500">🌤️ Forecast</span>
-      <span class="h-2.5 w-20 animate-pulse rounded-full bg-sand-300"></span>
+      <Skeleton variant="text" width={80} height={10} />
     </div>
     <div class="-mx-1 flex justify-center-safe gap-2 overflow-hidden px-1">
       {#each Array.from({ length: skeletonCount }) as _, i (i)}
-        <div class="flex w-[68px] flex-none animate-pulse flex-col items-center gap-1.5 rounded-xl bg-white px-1 py-2">
-          <span class="h-2.5 w-8 rounded bg-sand-300"></span>
-          <span class="my-0.5 h-6 w-6 rounded-full bg-sand-300"></span>
-          <span class="h-3 w-6 rounded bg-sand-300"></span>
-          <span class="h-2.5 w-5 rounded bg-sand-300"></span>
+        <div class="flex w-[68px] flex-none flex-col items-center gap-1.5 rounded-xl bg-white px-1 py-2">
+          <Skeleton variant="text" width={32} height={10} />
+          <Skeleton variant="circle" width={24} class="my-0.5" />
+          <Skeleton variant="text" width={24} height={13} />
+          <Skeleton variant="text" width={20} height={10} />
         </div>
       {/each}
     </div>
