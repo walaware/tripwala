@@ -36,6 +36,11 @@
     trips ? trips.current.length + trips.upcoming.length + trips.past.length : 0
   );
   const coming = $derived(trips ? trips.current.length + trips.upcoming.length : 0);
+
+  // Past trips pile up and aren't the point of the page, so collapse them to a
+  // single preview row (most-recent first) with a tap to reveal the rest.
+  const PAST_PREVIEW = 2;
+  let pastExpanded = $state(false);
 </script>
 
 <svelte:head><title>tripwala — one link, everyone's in</title></svelte:head>
@@ -85,17 +90,34 @@
         <div class="mt-5"><Button href="/new" variant="primary" size="lg">Plan your first trip 🎒</Button></div>
       </div>
     {:else if trips}
-      {#each [{ items: trips.current, label: 'Happening now' }, { items: trips.upcoming, label: 'Upcoming' }, { items: trips.past, label: 'Past' }] as section}
+      {#each [{ id: 'current', items: trips.current, label: 'Happening now' }, { id: 'upcoming', items: trips.upcoming, label: 'Upcoming' }, { id: 'past', items: trips.past, label: 'Past' }] as section}
         {#if section.items.length}
+          {@const collapsible = section.id === 'past' && section.items.length > PAST_PREVIEW}
+          {@const hidden = collapsible && !pastExpanded ? section.items.length - PAST_PREVIEW : 0}
+          {@const visible = hidden ? section.items.slice(0, PAST_PREVIEW) : section.items}
           <section class="mt-8">
             <h2 class="mb-5 font-display text-[13px] font-extrabold uppercase tracking-wider text-text-muted">
               {section.label}
             </h2>
             <div class="flex flex-col gap-3 sm:grid sm:grid-cols-2">
-              {#each section.items as trip (trip.id)}
+              {#each visible as trip (trip.id)}
                 <TripCard {trip} />
               {/each}
             </div>
+            {#if collapsible}
+              <button
+                type="button"
+                onclick={() => (pastExpanded = !pastExpanded)}
+                aria-expanded={pastExpanded}
+                class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-sand-300 py-2.5 font-body text-[13px] font-extrabold text-text-muted transition-colors hover:bg-surface-sunk"
+              >
+                {#if pastExpanded}
+                  Show less <span class="text-[10px]">▲</span>
+                {:else}
+                  Show {hidden} more past trip{hidden === 1 ? '' : 's'} <span class="text-[10px]">▼</span>
+                {/if}
+              </button>
+            {/if}
           </section>
         {/if}
       {/each}
