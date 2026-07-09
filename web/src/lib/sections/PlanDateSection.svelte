@@ -1,11 +1,10 @@
 <script>
   import { invalidateAll } from '$app/navigation';
-  import { Card } from '@walaware/design';
-  import { Button } from '@walaware/design';
-  import { DateField } from '@walaware/design';
+  import { Card, Button, RangeCalendar } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { planAction } from '$lib/planClient.js';
   import { fmtDateRange } from '$lib/format.js';
+  import { expandRange, groupDays, toggleRange } from '$lib/dateRanges.js';
 
   /**
    * @type {{
@@ -18,101 +17,143 @@
    */
   let { shareToken, dateOptions, availability, isOrganizer, minNights = 0 } = $props();
 
-  /** @type {Set<string>} */
-  let mine = $state(new Set());
-  $effect(() => {
-    mine = new Set(availability.mine);
-  });
-
-  let propStart = $state('');
-  let propEnd = $state('');
-  let busy = $state(false);
-  let proposeError = $state('');
-
-  // Nights in the currently-typed range; gate Propose on the trip's minimum.
-  const propNights = $derived(
-    propStart ? Math.round((Date.parse(propEnd || propStart) - Date.parse(propStart)) / 86400000) : 0
-  );
-  const tooShort = $derived(minNights > 0 && !!propStart && propNights < minNights);
-
-  const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  /** @param {number} y @param {number} m @param {number} d */
-  const ymd = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-
-  // Pageable month grid (trips can be far out): one month at a time on phones,
-  // three on wider screens. Range/day picks span months freely regardless.
   const now = new Date();
-  let monthOffset = $state(0);
-  const MAX_OFFSET = 12; // page availability up to ~a year ahead
+  const iso = (/** @type {Date} */ d) => d.toLocaleDateString('en-CA'); // local YYYY-MM-DD
+  const todayIso = iso(now);
+  // A year out. Constructing through Date rolls Feb 29 → Mar 1 rather than
+  // producing a date that doesn't exist.
+  const maxIso = iso(new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()));
 
-  let wide = $state(true); // SSR-safe default; corrected on mount
+  // My free days, optimistic: seeded from the server, updated in place so the
+  // outline bands redraw before the round-trip lands.
+  /** @type {string[]} */
+  let myDays = $state([]);
   $effect(() => {
-    const mq = window.matchMedia('(min-width: 640px)');
-    const sync = () => (wide = mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
+    myDays = [...availability.mine];
   });
-  const perPage = $derived(wide ? 3 : 1);
 
-  const months = $derived(
-    Array.from({ length: perPage }, (_, off) => {
-      const base = new Date(now.getFullYear(), now.getMonth() + monthOffset + off, 1);
-      const y = base.getFullYear();
-      const m = base.getMonth();
-      const first = new Date(y, m, 1).getDay();
-      const days = new Date(y, m + 1, 0).getDate();
-      /** @type {Array<{date:string,day:number}|null>} */
-      const cells = [];
-      for (let i = 0; i < first; i++) cells.push(null);
-      for (let d = 1; d <= days; d++) cells.push({ date: ymd(y, m, d), day: d });
-      return { label: `${MONTHS[m]} ${y}`, cells };
-    })
+  const memberCount = $derived(Math.max(1, availability.memberCount));
+
+  // Heat is the GROUP signal only — what fraction of the trip is free that day.
+  // My own days are drawn as outline bands instead, or a day only I'm free on
+  // would look the same as one four people are free on.
+  const heat = $derived(
+    Object.fromEntries(
+      Object.entries(availability.byDay)
+        .filter(([, count]) => count > 0)
+        .map(([date, count]) => [date, Math.min(1, count / memberCount)])
+    )
   );
 
-  const todayStr = ymd(now.getFullYear(), now.getMonth(), now.getDate());
+  /** @type {import('@walaware/design').DateRange[]} */
+  const ranges = $derived([
+    ...dateOptions.map((o) => ({
+      id: o.id,
+      start: o.start_date,
+      end: o.end_date,
+      tone: /** @type {const} */ ('candidate'),
+      label: fmtDateRange(o.start_date, o.end_date),
+      onClick: () => focusOption(o.id)
+    })),
+    ...groupDays(myDays).map((r, i) => ({
+      id: `mine-${i}`,
+      start: r.start,
+      end: r.end,
+      tone: /** @type {const} */ ('outline'),
+      label: "You're free"
+    }))
+  ]);
 
-  /** @param {string} date */
-  async function toggleDay(date) {
-    if (date < todayStr) return; // no past days
-    const next = new Set(mine);
-    if (next.has(date)) next.delete(date);
-    else next.add(date);
-    mine = next;
-    try {
-      await planAction(shareToken, { op: 'set_availability', dates: [...next] });
-      await invalidateAll();
-    } catch (_) {
-      await invalidateAll();
-    }
+  // The live selection. `valid` only flips once RangeCalendar tells us the span
+  // passed minNights / bounds — a too-short span still renders, so you can see
+  // what you picked rather than having it silently clamped.
+  // `null`, not '' — RangeCalendar reads an unset span as nullish and falls back
+  // to today for the leading month.
+  /** @type {string | null} */
+  let selStart = $state(null);
+  /** @type {string | null} */
+  let selEnd = $state(null);
+  let valid = $state(false);
+  let invalidMsg = $state('');
+  let busy = $state('');
+  let actionError = $state('');
+
+  const selDays = $derived(selStart ? expandRange(selStart, selEnd || selStart) : []);
+  const selNights = $derived(Math.max(0, selDays.length - 1));
+  // Tapping a stretch you've already marked clears it, so the button has to say so.
+  const clearing = $derived(valid && selDays.length > 0 && selDays.every((d) => myDays.includes(d)));
+
+  /** @param {string} start @param {string} end */
+  function onSelect(start, end) {
+    selStart = start;
+    selEnd = end;
+    valid = true;
+    invalidMsg = '';
+    actionError = '';
   }
 
-  /** Heat 0..1 of a day's availability across the group. */
-  function heat(/** @type {string} */ date) {
-    const c = availability.byDay[date] ?? 0;
-    const n = Math.max(1, availability.memberCount);
-    return c / n;
+  /**
+   * @param {string} start @param {string} end
+   * @param {import('@walaware/design').InvalidReason} reason
+   */
+  function onInvalidSelect(start, end, reason) {
+    selStart = start;
+    selEnd = end;
+    valid = false;
+    const nights = expandRange(start, end).length - 1;
+    invalidMsg =
+      reason === 'too-short'
+        ? `That's ${nights} night${nights === 1 ? '' : 's'} — this trip needs at least ${minNights}.`
+        : reason === 'out-of-bounds'
+          ? 'Pick dates between today and a year out.'
+          : "Those dates aren't all available.";
+  }
+
+  function clearSelection() {
+    selStart = null;
+    selEnd = null;
+    valid = false;
+    invalidMsg = '';
+  }
+
+  /** @param {string} optionId */
+  function focusOption(optionId) {
+    document.getElementById(`opt-${optionId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  // "I'm free then" — the range toggles against my day set. Availability is
+  // still stored as loose days server-side; only the UI thinks in stretches.
+  async function toggleFree() {
+    if (!valid || !selStart || busy) return;
+    busy = 'free';
+    actionError = '';
+    const next = toggleRange(myDays, selStart, selEnd || selStart);
+    const prev = myDays;
+    myDays = next;
+    try {
+      await planAction(shareToken, { op: 'set_availability', dates: next });
+      clearSelection();
+      await invalidateAll();
+    } catch (_) {
+      myDays = prev;
+      actionError = "Couldn't save those days.";
+    } finally {
+      busy = '';
+    }
   }
 
   async function proposeRange() {
-    if (!propStart || busy) return;
-    if (tooShort) {
-      proposeError = `This trip needs at least ${minNights} night${minNights === 1 ? '' : 's'}.`;
-      return;
-    }
-    busy = true;
-    proposeError = '';
+    if (!valid || !selStart || busy) return;
+    busy = 'propose';
+    actionError = '';
     try {
-      await planAction(shareToken, { op: 'propose_date', start: propStart, end: propEnd || propStart });
-      propStart = '';
-      propEnd = '';
+      await planAction(shareToken, { op: 'propose_date', start: selStart, end: selEnd || selStart });
+      clearSelection();
       await invalidateAll();
     } catch (_) {
-      proposeError = 'Could not propose those dates.';
+      actionError = 'Could not propose those dates.';
     } finally {
-      busy = false;
+      busy = '';
     }
   }
 
@@ -142,18 +183,62 @@
 
 <SectionHeader emoji="📅" title="When can everyone go?" />
 <Card>
-
   {#if minNights > 0}
     <div class="mb-3 rounded-xl bg-sun-100 px-3 py-2 font-body text-[12.5px] font-extrabold text-cocoa-700">
       📏 This trip is at least {minNights} night{minNights === 1 ? '' : 's'} — pick a stretch that long.
     </div>
   {/if}
 
-  <!-- Owner-proposed candidate ranges -->
+  <p class="mb-2 font-body text-[13px] font-extrabold text-cocoa-700">
+    Drag a stretch you're free. Darker days suit more people.
+  </p>
+
+  <RangeCalendar
+    bind:start={selStart}
+    bind:end={selEnd}
+    min={todayIso}
+    max={maxIso}
+    {minNights}
+    {heat}
+    {ranges}
+    heatLabel={(_d, v) => `${Math.round(v * memberCount)} of ${memberCount} free`}
+    label="Trip dates"
+    {onSelect}
+    {onInvalidSelect}
+  />
+
+  {#if selStart}
+    <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-sand-200 pt-3">
+      <span class="font-display text-sm font-semibold text-cocoa-900">
+        {fmtDateRange(selStart, selEnd || selStart)}
+        {#if valid}<span class="font-body text-[12.5px] font-bold text-cocoa-500">· {selNights} night{selNights === 1 ? '' : 's'}</span>{/if}
+      </span>
+      <span class="ml-auto flex flex-wrap gap-2">
+        <Button variant="soft" size="sm" disabled={!valid || !!busy} onclick={toggleFree}>
+          {busy === 'free' ? 'Saving…' : clearing ? "I'm not free then" : "I'm free then"}
+        </Button>
+        {#if isOrganizer}
+          <Button variant="primary" size="sm" disabled={!valid || !!busy} onclick={proposeRange}>
+            {busy === 'propose' ? 'Proposing…' : 'Propose dates'}
+          </Button>
+        {/if}
+        <Button variant="ghost" size="sm" onclick={clearSelection}>Clear</Button>
+      </span>
+    </div>
+    {#if invalidMsg}
+      <p class="mt-1.5 font-body text-xs font-bold text-berry-600">{invalidMsg}</p>
+    {:else if actionError}
+      <p class="mt-1.5 font-body text-xs font-bold text-berry-600">{actionError}</p>
+    {/if}
+  {/if}
+
+  <!-- Candidate ranges. Voting lives here, not on the calendar bars: a 16px bar
+       is a bad tap target, and these rows already carry the tallies. -->
   {#if dateOptions.length}
-    <div class="flex flex-col gap-2">
+    <div class="mt-4 flex flex-col gap-2 border-t border-sand-200 pt-3">
+      <p class="font-body text-[13px] font-extrabold text-cocoa-700">Proposed dates</p>
       {#each dateOptions as o (o.id)}
-        <div class="rounded-xl bg-sand-100 px-4 py-3">
+        <div id="opt-{o.id}" class="rounded-xl bg-sand-100 px-4 py-3">
           <div class="flex items-center justify-between gap-2">
             <span class="font-display text-sm font-semibold text-cocoa-900">
               {fmtDateRange(o.start_date, o.end_date)}
@@ -173,62 +258,4 @@
       {/each}
     </div>
   {/if}
-
-  {#if isOrganizer}
-    <div class="mt-2.5 flex flex-col gap-2">
-      <DateField range bind:start={propStart} bind:end={propEnd} startLabel="From" endLabel="To" min={todayStr} minNights={minNights} />
-      <Button variant="soft" size="sm" class="w-full whitespace-nowrap sm:w-auto sm:self-start" onclick={proposeRange} disabled={!propStart || busy || tooShort}>
-        Propose dates
-      </Button>
-    </div>
-    {#if tooShort}
-      <p class="mt-1.5 font-body text-xs font-bold text-cocoa-500">
-        That's {propNights} night{propNights === 1 ? '' : 's'} — this trip needs at least {minNights}.
-      </p>
-    {:else if proposeError}
-      <p class="mt-1.5 font-body text-xs font-bold text-berry-600">{proposeError}</p>
-    {/if}
-  {/if}
-
-  <!-- Free-pick availability heatmap -->
-  <div class="mt-4 border-t border-sand-200 pt-3">
-    <div class="flex items-center justify-between">
-      <p class="font-body text-[13px] font-extrabold text-cocoa-700">Or tap the days you're free</p>
-      <div class="flex items-center gap-1">
-        <button type="button" onclick={() => (monthOffset = Math.max(0, monthOffset - perPage))} disabled={monthOffset === 0} class="rounded-md px-2 py-0.5 font-body text-sm font-extrabold text-cocoa-500 hover:bg-sand-100 disabled:opacity-30" aria-label="earlier months">◀</button>
-        <button type="button" onclick={() => (monthOffset = Math.min(MAX_OFFSET, monthOffset + perPage))} disabled={monthOffset >= MAX_OFFSET} class="rounded-md px-2 py-0.5 font-body text-sm font-extrabold text-cocoa-500 hover:bg-sand-100 disabled:opacity-30" aria-label="later months">▶</button>
-      </div>
-    </div>
-    <p class="font-body text-xs font-bold text-cocoa-400">Darker = more people free. Your picks are outlined.</p>
-    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-      {#each months as month}
-        <div>
-          <div class="mb-1 text-center font-display text-xs font-bold text-cocoa-700">{month.label}</div>
-          <div class="grid grid-cols-7 gap-0.5">
-            {#each WEEKDAYS as wd, i}
-              <div class="text-center font-body text-[9px] font-bold text-cocoa-400">{wd}</div>
-            {/each}
-            {#each month.cells as cell}
-              {#if cell}
-                {@const isMine = mine.has(cell.date)}
-                {@const past = cell.date < todayStr}
-                {@const h = heat(cell.date)}
-                <button
-                  type="button"
-                  disabled={past}
-                  onclick={() => toggleDay(cell.date)}
-                  class="aspect-square rounded text-[10px] font-bold transition disabled:opacity-30 {isMine ? 'ring-2 ring-coral-500' : ''}"
-                  style="background: {h > 0 ? `color-mix(in srgb, var(--color-coral-500) ${Math.round(h * 70)}%, var(--color-sand-100))` : 'var(--color-sand-100)'}; color: {h > 0.5 ? '#fff' : 'var(--color-cocoa-700)'}"
-                >
-                  {cell.day}
-                </button>
-              {:else}
-                <div></div>
-              {/if}
-            {/each}
-          </div>
-        </div>
-      {/each}
-    </div>
-  </div>
 </Card>

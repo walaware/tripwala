@@ -45,10 +45,12 @@ export async function loadPlanning(pb, trip, myParticipantId) {
     if (vv === 'yes' || vv === 'maybe' || vv === 'no') t[vv]++;
     if (v.participant === myParticipantId) t.mine = vv;
   }
+  // Date-only, because the calendar draws candidate bars from these and speaks
+  // `YYYY-MM-DD` — not PocketBase's datetimes.
   const options = dateOptions.map((o) => ({
     id: o.id,
-    start_date: o.start_date,
-    end_date: o.end_date || o.start_date,
+    start_date: dateOnly(o.start_date),
+    end_date: dateOnly(o.end_date || o.start_date),
     ...optTally[o.id]
   }));
 

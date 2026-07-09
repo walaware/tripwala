@@ -102,12 +102,15 @@ export async function POST({ params, request, locals }) {
         if (end && end < start) throw error(400, 'End is before start');
         assertMinNights(trip, start, end);
         const count = (await pb.collection('date_options').getList(1, 1, { filter: pb.filter('trip = {:t}', { t: trip.id }) })).totalItems;
-        await pb.collection('date_options').create({
+        const option = await pb.collection('date_options').create({
           trip: trip.id,
           start_date: toPb(start),
           end_date: end ? toPb(end) : '',
           sort_order: count
         });
+        // Proposing a stretch is itself a "yes" — seed the vote so the tally
+        // starts at 1 and the proposer isn't listed as not having answered.
+        await pb.collection('date_votes').create({ date_option: option.id, participant: me.id, vote: 'yes' });
         break;
       }
 
@@ -154,6 +157,8 @@ export async function POST({ params, request, locals }) {
           url: url.slice(0, 500),
           note
         });
+        // Suggesting a place is itself an upvote — same as proposing dates.
+        await pb.collection('location_votes').create({ location_idea: idea.id, participant: me.id });
         // Unfurl the link ONCE, here, so the card has a preview on first render.
         // Best-effort + SSRF-guarded inside unfurl(); mark fetched either way so a
         // site with no OG tags isn't retried on every load.
