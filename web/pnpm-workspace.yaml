@@ -1,0 +1,18 @@
+# pnpm 10+ refuses to run a dependency's build scripts unless it's allowlisted
+# here — a supply-chain guard. Keep this list as short as it can be.
+#
+# @walaware/design is installed from git, and a git-hosted Svelte library ships
+# source rather than a built package: its `prepare` script runs `svelte-package`
+# to compile it. Without this entry, `pnpm install` hard-fails with
+# ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED.
+#
+# The key must be the exact resolution — pnpm rejects both a bare name and a
+# `@*` wildcard ("Use exact versions only"). That means the commit sha below is
+# pinned to design v0.9.0 and MUST be updated whenever the dep is bumped, or the
+# install breaks. Copy the replacement key out of pnpm's own error message.
+#
+# esbuild's postinstall fetches its platform-native binary; vite's build is dead
+# without it. Its key is version-pinned for the same reason.
+allowBuilds:
+  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/5c6f1c282be6515de672bde3ecfa630aa338ed01': true
+  'esbuild@0.25.12': true

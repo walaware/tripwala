@@ -2,7 +2,10 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml carries the allowBuilds allowlist that pnpm 10+ requires
+# before it will run @walaware/design's `prepare` script. Without it, install
+# hard-fails with ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build && pnpm prune --prod
