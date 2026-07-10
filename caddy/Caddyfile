@@ -23,11 +23,22 @@
 #
 # Caddy sorts `handle` blocks by path specificity, so /api/files/* is matched
 # before the /api/* deny-all below it.
+#
+# Upstreams are env-parameterized so ONE file serves every environment. The
+# defaults match this repo's compose service names. The homelab deployment names
+# its containers differently and overrides them on the caddy service:
+#
+#   PB_UPSTREAM=tripwala-pocketbase:8090
+#   WEB_UPSTREAM=tripwala-web:3000
+#
+# Before this, prod kept a hand-edited copy with its own hostnames, and the two
+# silently diverged — a redeploy from the other copy would have re-opened the
+# PocketBase API and the /_/ dashboard to the internet.
 
 :80 {
 	# Uploaded files only — the sole PocketBase surface the browser needs.
 	handle /api/files/* {
-		reverse_proxy pocketbase:8090
+		reverse_proxy {$PB_UPSTREAM:pocketbase:8090}
 	}
 
 	# Everything else on PocketBase: not public. 404 rather than 403 so the
@@ -41,6 +52,6 @@
 
 	# Everything else → SvelteKit (adapter-node) server.
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy {$WEB_UPSTREAM:web:3000}
 	}
 }

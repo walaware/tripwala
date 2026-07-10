@@ -67,13 +67,16 @@ services:
       pocketbase:
         condition: service_healthy
 
+  # Local/dev parity: bind-mount the Caddyfile so an edit + `docker compose
+  # restart caddy` is instant. Production runs the tripwala-caddy image, which
+  # bakes this exact file in (see caddy/Dockerfile and compose.prod.yml).
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     depends_on:
       - web

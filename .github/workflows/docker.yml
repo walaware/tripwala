@@ -28,6 +28,10 @@ jobs:
             context: ./web
           - image: tripwala-pocketbase
             context: ./pocketbase
+          # The edge proxy ships its Caddyfile baked in, so the deployment's
+          # public surface is versioned with the code rather than hand-copied.
+          - image: tripwala-caddy
+            context: ./caddy
     steps:
       - uses: actions/checkout@v4
 

@@ -46,13 +46,16 @@ services:
       pocketbase:
         condition: service_healthy
 
+  # No Caddyfile mount: the config is baked into the image, so the deployment's
+  # public surface is versioned and cannot drift from the repo. Upstreams come
+  # from env — these defaults match the service names above, so they're only
+  # needed where containers are named differently (PB_UPSTREAM/WEB_UPSTREAM).
   caddy:
-    image: caddy:2-alpine
+    image: ghcr.io/${IMAGE_OWNER:-walaware}/tripwala-caddy:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "8080:80" # front this with your Cloudflare Tunnel / reverse proxy
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     depends_on:
       - web
