@@ -4,6 +4,7 @@ import { getMembership } from '$lib/server/membership.js';
 import { isMailConfigured, sendInviteEmail } from '$lib/server/mailer.js';
 import { immichConfigured, createTripAlbum, syncAlbumName, parseShareLink } from '$lib/server/immich.js';
 import { inviteFriendToTrip } from '$lib/server/invitations.js';
+import { isVisibility } from '$lib/visibility.js';
 
 // All trip mutations funnel through here. PocketBase collection rules are locked
 // to superuser-only, so the browser cannot write directly — it POSTs an op to
@@ -689,11 +690,12 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
-      // Calendar visibility: private (members-only) or friends (accepted friends
-      // of members see a read-only teaser on their calendar). Organizer only.
+      // Calendar visibility: private (members-only), busy (friends see the dates
+      // only) or friends (friends see the full teaser). Organizer only. An
+      // unrecognised value falls back to 'private' rather than over-sharing.
       case 'set_visibility': {
         if (!isOrganizer) throw error(403, 'Only organizers can change this');
-        const value = body.value === 'friends' ? 'friends' : 'private';
+        const value = isVisibility(body.value) ? body.value : 'private';
         await pb.collection('trips').update(trip.id, { visibility: value });
         break;
       }

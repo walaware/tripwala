@@ -1,15 +1,22 @@
-// Friends-on-your-calendar (#30, Surface B). A trip whose `visibility` is
-// 'friends' may be seen — as a read-only TEASER — by the accepted friends of any
-// of its members. This is the ONLY read path that crosses the trip boundary, so
-// the projection is deliberately thin: name, dates, location, and which of your
-// friends are on it. It NEVER returns share_token or any member-only field, so
-// it cannot become a link into the private detail route (which still gates on
-// membership). Everything is live-computed, so unfriending or flipping a trip
-// back to 'private' revokes the teaser immediately.
+// Friends-on-your-calendar (#30, Surface B). A trip shared beyond 'private' may
+// be seen — as a read-only TEASER — by the accepted friends of any of its
+// members. This is the ONLY read path that crosses the trip boundary, so the
+// projection is deliberately thin and tier-dependent:
+//
+//   friends → name, dates, location, and which of your friends are on it.
+//   busy    → dates and which friends are away. Name and location are BLANKED
+//             here, at the source, so they cannot leak through a caller that
+//             forgets to check the flag.
+//
+// It NEVER returns share_token or any member-only field, so it cannot become a
+// link into the private detail route (which still gates on membership).
+// Everything is live-computed, so unfriending or flipping a trip back to
+// 'private' revokes the teaser immediately.
 
 import { avatarUrl } from './userAvatar.js';
 import { displayName } from '../displayName.js';
 import { friendIdSet } from './friends.js';
+import { tripVisibility } from '../visibility.js';
 
 /** YYYY-MM-DD in UTC (matches trip date storage/comparison). */
 function todayUtc() {
@@ -20,15 +27,16 @@ const dateOnly = (/** @type {string | undefined | null} */ d) => String(d ?? '')
 /**
  * @typedef {Object} FriendTeaser
  * @property {string} id synthetic display id (trip id) — NOT a link target
- * @property {string} name
+ * @property {string} name '' when busy
  * @property {string} start_date
  * @property {string} end_date
- * @property {string} location
+ * @property {string} location '' when busy
+ * @property {boolean} busy dates-only tier — render as an anonymous band
  * @property {Array<{ name: string, avatar?: string }>} friends which of my friends are on it
  */
 
 /**
- * Teasers of friends' trips that are shared to friends and haven't ended.
+ * Teasers of friends' trips that are shared (busy or friends) and haven't ended.
  *
  * @param {import('pocketbase').default} pb superuser client
  * @param {string} userId
@@ -58,17 +66,23 @@ export async function loadFriendsCalendar(pb, userId) {
   /** @type {Map<string, any>} */
   const byId = new Map();
   for (const t of trips) {
-    // Only friends-visible trips, and drop ideas + already-ended trips.
-    if ((t.visibility || 'private') !== 'friends') continue;
+    // Only shared trips, and drop ideas + already-ended trips. Anything that
+    // isn't a known tier reads as private.
+    const tier = tripVisibility(t);
+    if (tier === 'private') continue;
     if (t.status === 'idea') continue;
     const end = dateOnly(t.end_date) || dateOnly(t.start_date);
     if (end && end < today) continue;
+    const busy = tier === 'busy';
     byId.set(t.id, {
       id: t.id,
-      name: t.name,
+      // Blanked at the source for 'busy' — a caller that ignores `busy` still
+      // cannot render what it never received.
+      name: busy ? '' : t.name,
       start_date: t.start_date ?? '',
       end_date: t.end_date ?? '',
-      location: t.location ?? '',
+      location: busy ? '' : (t.location ?? ''),
+      busy,
       friends: []
     });
   }

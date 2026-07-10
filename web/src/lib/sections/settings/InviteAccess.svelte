@@ -2,6 +2,7 @@
   import { Button, SegmentedControl, CopyField } from '@walaware/design';
   import { inputClass, labelClass, hintClass } from './styles.js';
   import { tripAction } from '$lib/tripClient.js';
+  import { VISIBILITY_CHOICES, tripVisibility } from '$lib/visibility.js';
 
   /**
    * Invite link, invite-by-email, and (organizers) the three access toggles.
@@ -22,6 +23,10 @@
     shareToken, inviteUrl, ownerMode, showInvite, joinPolicy, inviteVisibility,
     visibility, emailEnabled, act
   } = $props();
+
+  const visibilityHint = $derived(
+    VISIBILITY_CHOICES.find((c) => c.value === tripVisibility({ visibility }))?.hint ?? ''
+  );
 
   let inviteEmail = $state('');
   let sending = $state(false);
@@ -104,16 +109,11 @@
     <div>
       <div class={labelClass}>On friends' calendars</div>
       <SegmentedControl
-        options={[
-          { value: 'private', label: 'Private' },
-          { value: 'friends', label: 'Friends can see' }
-        ]}
-        value={visibility === 'friends' ? 'friends' : 'private'}
+        options={VISIBILITY_CHOICES.map(({ value, label }) => ({ value, label }))}
+        value={tripVisibility({ visibility })}
         onChange={(v) => act('set_visibility', { value: v }, 'visibility')}
       />
-      <p class="mt-1.5 {hintClass}">
-        When on, your friends see this trip's name, dates, and place on their calendar — never the plans inside.
-      </p>
+      <p class="mt-1.5 {hintClass}">{visibilityHint}</p>
     </div>
   </div>
 {/if}

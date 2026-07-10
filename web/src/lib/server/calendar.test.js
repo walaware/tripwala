@@ -65,9 +65,49 @@ test('teaser carries only public fields — never share_token or private data', 
   for (const forbidden of ['share_token', 'owner_token', 'description', 'expense_link']) {
     assert.ok(!keys.includes(forbidden), `teaser leaked "${forbidden}"`);
   }
-  assert.deepEqual(new Set(keys), new Set(['id', 'name', 'start_date', 'end_date', 'location', 'friends']));
+  assert.deepEqual(
+    new Set(keys),
+    new Set(['id', 'name', 'start_date', 'end_date', 'location', 'busy', 'friends'])
+  );
   assert.equal(t.name, 'Beach Week');
+  assert.equal(t.busy, false);
   assert.equal(t.friends[0].name, 'Fiona');
+});
+
+// The whole point of the 'busy' tier: friends learn WHEN you're away, never
+// where or what. A regression here silently discloses trip details.
+test("a 'busy' trip shows dates and who is away, but no name or location", async () => {
+  const store = baseStore();
+  store.trips[0].visibility = 'busy';
+  const teasers = await loadFriendsCalendar(fakePb(store), 'me');
+  assert.equal(teasers.length, 1);
+  const t = teasers[0];
+  assert.equal(t.busy, true);
+  assert.equal(t.name, '');
+  assert.equal(t.location, '');
+  // Dates and the friend still come through — that is what makes it useful.
+  assert.equal(t.start_date.slice(0, 10), FUTURE);
+  assert.equal(t.end_date.slice(0, 10), FUTURE_END);
+  assert.equal(t.friends[0].name, 'Fiona');
+  // And nothing private rides along.
+  const serialized = JSON.stringify(t);
+  for (const secret of ['Beach Week', 'Tofino', 'beach-mossy-otter', 'supersecrettoken']) {
+    assert.ok(!serialized.includes(secret), `busy teaser leaked "${secret}"`);
+  }
+});
+
+test("a 'busy' trip that already ended is still dropped", async () => {
+  const store = baseStore();
+  store.trips[0].visibility = 'busy';
+  store.trips[0].start_date = `${PAST} 00:00:00.000Z`;
+  store.trips[0].end_date = `${PAST} 00:00:00.000Z`;
+  assert.equal((await loadFriendsCalendar(fakePb(store), 'me')).length, 0);
+});
+
+test('an unknown visibility value reads as private (excluded)', async () => {
+  const store = baseStore();
+  store.trips[0].visibility = 'public';
+  assert.equal((await loadFriendsCalendar(fakePb(store), 'me')).length, 0);
 });
 
 test('a private-visibility trip is never shown', async () => {

@@ -22,13 +22,24 @@
     })),
     ...data.friendEvents.map((e) => ({
       id: e.id,
-      title: e.name,
+      // A 'busy' trip has no name to show — label it by who is away instead, so
+      // the band still answers the only question it exists to answer.
+      title: e.busy ? `${awayNames(e.friends)} away` : e.name,
       start: ymd(e.start_date),
       end: ymd(e.end_date),
       tone: TEASER,
-      emoji: '👋'
+      emoji: e.busy ? '🔒' : '👋'
     }))
   ]);
+
+  const hasBusy = $derived(data.friendEvents.some((e) => e.busy));
+
+  /** @param {Array<{ name: string }>} friends */
+  function awayNames(friends) {
+    const names = friends.map((f) => f.name);
+    if (names.length <= 2) return names.join(' & ') || 'Someone';
+    return `${names[0]} +${names.length - 1}`;
+  }
 
   const now = new Date();
   let year = $state(now.getFullYear());
@@ -71,6 +82,9 @@
       <span class="inline-flex items-center gap-1.5">
         <span class="h-3 w-3 rounded-full bg-sand-400"></span> Shared by friends
       </span>
+      {#if hasBusy}
+        <span class="inline-flex items-center gap-1.5">🔒 Busy — dates only</span>
+      {/if}
     </div>
   {:else}
     <div class="mt-8">

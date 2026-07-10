@@ -28,6 +28,7 @@ export async function load({ locals }) {
       end_date: t.end_date || t.start_date,
       kind: 'own'
     }));
+  // `busy` teasers already arrive with name/location blanked by the loader.
   const friendEvents = friends
     .filter((t) => t.start_date)
     .map((t) => ({
@@ -36,6 +37,7 @@ export async function load({ locals }) {
       location: t.location,
       start_date: t.start_date,
       end_date: t.end_date || t.start_date,
+      busy: t.busy,
       friends: t.friends,
       kind: 'friend'
     }));
