@@ -1,7 +1,12 @@
 // Dev seed: populate a local stack with a few varied trips so the dashboard and
 // views aren't empty. Idempotent by share_token — safe to re-run.
 //
-//   pnpm seed:dev                 # talks to http://localhost:8080
+// Talks to PocketBase DIRECTLY on :8090, not through Caddy — Caddy exposes only
+// /api/files/*, so collection and admin endpoints 404 through it. Publish the
+// port with the dev override first:
+//   docker compose -f compose.yml -f compose.dev.yml up -d pocketbase
+//
+//   pnpm seed:dev                 # talks to http://127.0.0.1:8090
 //   SEED_PB_URL=… pnpm seed:dev   # custom origin
 //
 // Trips are attached to the most recently signed-in user (so they show in YOUR
@@ -14,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 const DEMO_EMAIL = 'demo@tripwala.local';
 const DEMO_PASSWORD = 'demotripwala123';
 
-const pb = new PocketBase(process.env.SEED_PB_URL || 'http://localhost:8080');
+const pb = new PocketBase(process.env.SEED_PB_URL || 'http://127.0.0.1:8090');
 pb.autoCancellation(false);
 await pb.collection('_superusers').authWithPassword(
   process.env.PB_SUPERUSER_EMAIL || 'admin@tripwala.local',

@@ -1,16 +1,42 @@
-# Single entry point. Everything is same-origin so the browser's PocketBase
-# client (added in the realtime step) needs no CORS config.
+# Single entry point.
 #
 # Local dev over the stack uses :80 inside the container, published as :8080.
 # For production, replace `:80` with your domain and Caddy auto-provisions TLS.
+#
+# PocketBase is NOT a public API. The browser never talks to it directly — every
+# read goes through a SvelteKit `load()` and every write through a server
+# endpoint, both using the internal superuser client over the docker network.
+# The ONE exception is uploaded files (avatars, location photos, OG images),
+# which are <img src>'d straight from PocketBase's file endpoint.
+#
+# So only /api/files/* is exposed. Everything else under /api — crucially
+# /api/collections/users/records (create) and .../auth-with-password — stays
+# unreachable from the internet, along with the /_/ superuser dashboard.
+# Without this, `users.createRule = ""` (which OAuth2 sign-up requires; see the
+# users_create_rule migration) would let anyone create an account and sign in
+# with a password, defeating Google-only auth.
+#
+# Reaching the PocketBase dashboard as an operator: don't expose it here. Use
+#   docker compose -f compose.yml -f compose.dev.yml up -d pocketbase
+# locally, or an SSH tunnel to the host:
+#   ssh -L 8090:127.0.0.1:8090 <host>   →   http://127.0.0.1:8090/_/
+#
+# Caddy sorts `handle` blocks by path specificity, so /api/files/* is matched
+# before the /api/* deny-all below it.
 
 :80 {
-	# PocketBase REST API, realtime, file storage, and admin UI.
-	handle /api/* {
+	# Uploaded files only — the sole PocketBase surface the browser needs.
+	handle /api/files/* {
 		reverse_proxy pocketbase:8090
 	}
+
+	# Everything else on PocketBase: not public. 404 rather than 403 so the
+	# endpoints don't advertise that a PocketBase lives behind here.
+	handle /api/* {
+		respond 404
+	}
 	handle /_/* {
-		reverse_proxy pocketbase:8090
+		respond 404
 	}
 
 	# Everything else → SvelteKit (adapter-node) server.
