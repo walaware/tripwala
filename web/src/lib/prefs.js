@@ -2,6 +2,9 @@
 // stores empty by default and normalizes to a sensible fallback here, so the app
 // never has to special-case "unset". Add future prefs as small pure helpers
 // beside these — one accessor + one default — and surface them in /profile.
+//
+// One pref lives elsewhere: `default_trip_visibility` is in $lib/visibility.js,
+// beside the tier constants and the trip-side accessor it has to agree with.
 
 /** @typedef {'F' | 'C'} TempUnit */
 

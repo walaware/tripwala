@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
 import { avatarUrl } from '$lib/server/userAvatar.js';
 import { isAdmin } from '$lib/server/admin.js';
+import { isVisibility, defaultTripVisibility } from '$lib/visibility.js';
 
 // Account/profile surface for the signed-in user. Collections are locked to
 // superuser-only, so writes go through the superuser client — but ALWAYS scoped
@@ -19,6 +20,7 @@ export async function load({ locals }) {
   let nickname = locals.user.nickname || '';
   let showLastName = locals.user.show_last_name === true;
   let tempUnit = locals.user.temp_unit || '';
+  let tripVisibility = defaultTripVisibility(locals.user);
   try {
     const pb = await superuserPb();
     const rec = await pb.collection('users').getOne(locals.user.id);
@@ -26,6 +28,7 @@ export async function load({ locals }) {
     nickname = rec.nickname || '';
     showLastName = rec.show_last_name === true;
     tempUnit = rec.temp_unit || '';
+    tripVisibility = defaultTripVisibility(rec);
   } catch (_) {
     /* fall back to the cookie copy */
   }
@@ -36,6 +39,7 @@ export async function load({ locals }) {
     nickname,
     showLastName,
     tempUnit,
+    tripVisibility,
     isAdmin: await isAdmin(locals.user)
   };
 }
@@ -109,6 +113,23 @@ export const actions = {
     const pb = await superuserPb();
     try {
       await pb.collection('users').update(locals.user.id, { temp_unit });
+    } catch (_) {
+      return fail(400, { error: 'Could not save your preferences.' });
+    }
+    await refreshSession(locals);
+    throw redirect(303, '/profile');
+  },
+
+  // The tier NEW trips start at. Changing this never touches existing trips —
+  // those keep whatever their organizer set.
+  tripDefaults: async ({ request, locals }) => {
+    if (!locals.user) return fail(401, { error: 'Please sign in again.' });
+    const form = await request.formData();
+    const submitted = form.get('default_trip_visibility');
+    if (!isVisibility(submitted)) return fail(400, { error: 'Pick a sharing default.' });
+    const pb = await superuserPb();
+    try {
+      await pb.collection('users').update(locals.user.id, { default_trip_visibility: submitted });
     } catch (_) {
       return fail(400, { error: 'Could not save your preferences.' });
     }

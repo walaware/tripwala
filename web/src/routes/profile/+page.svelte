@@ -2,6 +2,7 @@
   import { AvatarUpload, Card, Button, TextField } from '@walaware/design';
   import { enhance } from '$app/forms';
   import { displayName } from '$lib/displayName.js';
+  import { VISIBILITY_CHOICES } from '$lib/visibility.js';
 
   /** @type {{ data: import('./$types').PageData, form: import('./$types').ActionData }} */
   let { data, form } = $props();
@@ -37,6 +38,19 @@
     return async (/** @type {{ update: () => Promise<void> }} */ { update }) => {
       await update();
       savingUnits = false;
+    };
+  };
+
+  // The tier NEW trips start at. Same one-submit-button-per-value trick as the
+  // units form. Existing trips are untouched by changing this.
+  // svelte-ignore state_referenced_locally
+  let tripVisibility = $state(data.tripVisibility);
+  let savingVisibility = $state(false);
+  const saveVisibility = () => {
+    savingVisibility = true;
+    return async (/** @type {{ update: () => Promise<void> }} */ { update }) => {
+      await update();
+      savingVisibility = false;
     };
   };
 
@@ -176,6 +190,34 @@
             {/each}
           </div>
         </div>
+      </form>
+
+      <form method="POST" action="?/tripDefaults" use:enhance={saveVisibility} class="mt-4 border-t border-sand-200 pt-4">
+        <span class="block font-body text-[14px] font-extrabold text-text-strong">New trips on friends' calendars</span>
+        <span class="block font-body text-[12px] font-bold text-text-muted">
+          The default for trips you create. Existing trips keep their own setting.
+        </span>
+        <div class="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Default trip visibility">
+          {#each VISIBILITY_CHOICES as c}
+            <button
+              type="submit"
+              name="default_trip_visibility"
+              value={c.value}
+              onclick={() => (tripVisibility = c.value)}
+              disabled={savingVisibility}
+              aria-pressed={tripVisibility === c.value}
+              class="rounded-lg px-3 py-1.5 font-body text-[13px] font-extrabold transition-colors {tripVisibility ===
+              c.value
+                ? 'bg-white text-cocoa-900 shadow-sm ring-1 ring-sand-300'
+                : 'bg-sand-100 text-cocoa-400'}"
+            >
+              {c.label}
+            </button>
+          {/each}
+        </div>
+        <p class="mt-1.5 font-body text-[12px] font-bold text-text-muted">
+          {VISIBILITY_CHOICES.find((c) => c.value === tripVisibility)?.hint ?? ''}
+        </p>
       </form>
     </Card>
   </div>

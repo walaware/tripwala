@@ -8,6 +8,7 @@ import { generateSlug } from './slug.js';
 import { generateSlotsFromDates } from './mealSlots.js';
 import { joinTrip } from './membership.js';
 import { immichConfigured, createTripAlbum } from './immich.js';
+import { isVisibility, defaultTripVisibility } from '../visibility.js';
 
 /** All statuses a trip can be created in (idea = a "someday" wishlist entry). */
 export const TRIP_STATUSES = ['idea', 'planning', 'confirmed', 'completed'];
@@ -38,13 +39,14 @@ const toPb = (d) => (d ? `${d} 00:00:00.000Z` : '');
  * @property {string} [status]       one of TRIP_STATUSES; defaults 'confirmed'
  * @property {string} [trip_type]
  * @property {boolean} [create_album]
+ * @property {string} [visibility]   friends-calendar tier; omitted → the creator's default
  */
 
 /**
  * Create a trip and enroll the creator as organizer.
  *
  * @param {import('pocketbase').default} pb superuser client
- * @param {{ id: string, name: string, email?: string }} user
+ * @param {{ id: string, name: string, email?: string, default_trip_visibility?: string }} user
  * @param {NewTripInput} input
  * @returns {Promise<{ trip: any, share_token: string, owner_token: string, mealSlots: number, albumRequested: boolean, albumCreated: boolean }>}
  */
@@ -53,6 +55,12 @@ export async function createTrip(pb, user, input) {
   const start_date = input.start_date ?? '';
   const end_date = input.end_date ?? '';
   const owner_token = generateOwnerToken();
+  // Explicit choice wins; otherwise fall back to the creator's saved preference.
+  // Unlike an existing trip (empty → private), a NEW trip is friend-visible
+  // unless its creator has said otherwise — see $lib/visibility.js.
+  const visibility = isVisibility(input.visibility)
+    ? input.visibility
+    : defaultTripVisibility(user);
 
   const base = {
     name: input.name,
@@ -64,7 +72,8 @@ export async function createTrip(pb, user, input) {
     owner_token,
     created_by: user.id,
     status,
-    trip_type: input.trip_type ?? ''
+    trip_type: input.trip_type ?? '',
+    visibility
   };
 
   // Friendly slug (<trip-word>-<word>-<word>-<word>). Three random words (~19

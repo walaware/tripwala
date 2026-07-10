@@ -1,15 +1,22 @@
 <script>
   import { enhance } from '$app/forms';
   import { page } from '$app/state';
-  import { Card, Button, TextField, DateField } from '@walaware/design';
+  import { Card, Button, TextField, DateField, SegmentedControl } from '@walaware/design';
+  import { VISIBILITY_CHOICES, DEFAULT_NEW_TRIP_VISIBILITY } from '$lib/visibility.js';
 
-  /** @type {{ form: any, data: { immichEnabled?: boolean } }} */
+  /** @type {{ form: any, data: { immichEnabled?: boolean, visibility?: string } }} */
   let { form, data } = $props();
 
   const immichEnabled = $derived(Boolean(data?.immichEnabled));
   const created = $derived(form?.created);
   const errors = $derived(form?.errors ?? {});
   const values = $derived(form?.values ?? {});
+
+  // Seeded from the creator's preference. Held in state (not re-derived) so a
+  // failed submit doesn't discard the choice they just made.
+  // svelte-ignore state_referenced_locally
+  let visibility = $state(data?.visibility ?? DEFAULT_NEW_TRIP_VISIBILITY);
+  const visibilityHint = $derived(VISIBILITY_CHOICES.find((c) => c.value === visibility)?.hint ?? '');
 
   const STAGES = [
     ['idea', '💭 Someday', 'Just an idea — save it to your wishlist, no dates'],
@@ -107,6 +114,20 @@
             placeholder="Mendocino Coast Camping"
           />
           {#if errors.name}<p class="mt-1 font-body text-sm font-bold text-berry-600">{errors.name}</p>{/if}
+        </div>
+
+        <!-- Surfaced at creation, not buried in settings: friends' calendars are
+             only useful if this gets answered once, here. Defaults to the
+             creator's saved preference (Profile → Preferences). -->
+        <div>
+          <span class={labelClass}>On friends' calendars</span>
+          <input type="hidden" name="visibility" value={visibility} />
+          <SegmentedControl
+            options={VISIBILITY_CHOICES.map(({ value, label }) => ({ value, label }))}
+            value={visibility}
+            onChange={(v) => (visibility = v)}
+          />
+          <p class="mt-1.5 font-body text-xs font-bold text-cocoa-500">{visibilityHint}</p>
         </div>
 
         <div>

@@ -11,6 +11,8 @@ export interface SessionUser {
   show_last_name?: boolean;
   /** Temperature unit for the weather forecast (see prefs.js); '' reads as 'F'. */
   temp_unit?: string;
+  /** Calendar tier new trips start at (see visibility.js); '' reads as 'friends'. */
+  default_trip_visibility?: string;
 }
 
 declare global {
