@@ -30,8 +30,8 @@ discussion live in
   per-person dietary notes (shown to cooks), a trip-dates weather forecast + live
   countdown, an emergency/safety info card, live arrival check-in, one-tap trip
   cloning, and an auto post-trip "Wrapped" recap once the dates pass
-- One invite link per trip; **accounts** (Google OAuth2 + email/password) — sign
-  in to join, and only invited members see the details (non-members get a teaser)
+- One invite link per trip; **accounts** (Google OAuth2) — sign in to join, and
+  only invited members see the details (non-members get a teaser)
 - **Membership + roles** — organizer / guest; creator is auto-organizer;
   membership-gated, server-mediated writes; invite co-organizers by email (they
   join straight as an organizer)

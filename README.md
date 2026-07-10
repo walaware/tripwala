@@ -54,8 +54,18 @@ cp .env.example .env          # set PB_SUPERUSER_PASSWORD
 docker compose up --build
 ```
 
-Open **http://localhost:8080/demo-tripwala-weekend** to see a seeded demo trip. The
-PocketBase admin UI is at `/_/` (superuser is auto-created from your `.env`).
+Open **http://localhost:8080/demo-tripwala-weekend** to see a seeded demo trip.
+
+Caddy deliberately exposes only `/api/files/*` from PocketBase — the REST API and
+the `/_/` admin UI are **not** served through it, in any environment. To reach the
+admin UI, publish PocketBase's port with the dev override and go straight to it:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml up -d pocketbase
+# → http://127.0.0.1:8090/_/   (superuser is auto-created from your .env)
+```
+
+In production, tunnel instead: `ssh -L 8090:127.0.0.1:8090 <host>`.
 
 ## Tech stack
 
@@ -101,8 +111,8 @@ fill it in however you like:
 
 - **Required:** `PB_SUPERUSER_PASSWORD` — the SvelteKit server authenticates to
   PocketBase as this superuser.
-- **Optional:** `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` enable
-  Google sign-in; leave them empty to offer email/password only.
+- **Required:** `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` — Google
+  is the only way to sign in, so leaving these empty locks everyone out.
 
 Manage those values with whatever you prefer — a plain `.env`, a cloud secret
 store, or **1Password**. This project happens to use the 1Password CLI (`op`):
@@ -135,7 +145,9 @@ account (becoming an organizer) — also how you add co-organizers.
 **Data model** (`pocketbase/pb_migrations/`): `users`, `trips`, `participants`,
 `gear_items`, `gear_claims`, `meal_slots`, `meal_signups`, `packing_items`.
 
-- Auth is PocketBase-native (`users` collection): **Google OAuth2 + email/password**.
+- Auth is PocketBase-native (`users` collection): **Google OAuth2 only**. There is
+  no password login and no reset flow; `pnpm audit:auth` lists accounts with no
+  linked Google identity.
 - `participants` is the membership table — a participant links to a `user` and a
   `role` (`organizer` | `guest`). `trips.created_by` is the creator.
 - Gear "remaining" = `qty_needed − Σ claims`; claiming auto-adds a personal

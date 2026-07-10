@@ -33,7 +33,9 @@ tripwala's dev ports are vite **5173** / PocketBase **8090**; Google sign-in nee
 (idempotent).
 
 To validate the production-parity build, run the full single-origin stack:
-`docker compose up --build` → **http://localhost:8080** (admin UI at `/_/`).
+`docker compose up --build` → **http://localhost:8080**. Caddy serves only
+`/api/files/*` from PocketBase, so the admin UI is *not* reachable at `/_/` —
+use `http://127.0.0.1:8090/_/` via the `compose.dev.yml` override.
 
 ## Reporting bugs / requesting features
 
