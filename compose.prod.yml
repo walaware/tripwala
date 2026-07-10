@@ -39,9 +39,22 @@ services:
       - PB_URL=http://pocketbase:8090
       - "PB_SUPERUSER_EMAIL=${PB_SUPERUSER_EMAIL:?set in .env}"
       - "PB_SUPERUSER_PASSWORD=${PB_SUPERUSER_PASSWORD:?set in .env}"
+      # REQUIRED behind a tunnel/proxy: adapter-node rejects form POSTs whose
+      # Origin doesn't match, and the invite links it mails are built from this.
+      - "ORIGIN=${ORIGIN:?set in .env, e.g. https://tripwala.example.com}"
       # Raise adapter-node's 512K default so 5 MB photo/avatar uploads don't get
       # their request body torn down mid-stream (uploads otherwise hang). See compose.yml.
       - "BODY_SIZE_LIMIT=${BODY_SIZE_LIMIT:-8M}"
+      # Optional SMTP relay for invite-by-email (empty = feature disabled). See
+      # .env.example; SMTP_FROM must be on a domain verified with the provider.
+      - "SMTP_HOST=${SMTP_HOST:-}"
+      - "SMTP_PORT=${SMTP_PORT:-587}"
+      - "SMTP_USER=${SMTP_USER:-}"
+      - "SMTP_PASS=${SMTP_PASS:-}"
+      - "SMTP_FROM=${SMTP_FROM:-}"
+      # Optional Immich integration for shared trip albums.
+      - "IMMICH_URL=${IMMICH_URL:-}"
+      - "IMMICH_API_KEY=${IMMICH_API_KEY:-}"
     depends_on:
       pocketbase:
         condition: service_healthy
