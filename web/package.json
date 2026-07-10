@@ -12,7 +12,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
     "test": "node --test 'src/**/*.test.js'",
     "seed:dev": "node --env-file-if-exists=../.env scripts/seed-dev.mjs",
-    "audit:auth": "node --env-file-if-exists=../.env scripts/audit-auth.mjs"
+    "audit:auth": "node --env-file-if-exists=../.env scripts/audit-auth.mjs",
+    "email:preview": "node --env-file-if-exists=../.env scripts/email-preview.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.2.12",
