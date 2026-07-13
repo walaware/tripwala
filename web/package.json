@@ -30,7 +30,7 @@
     "vite": "^6.2.5"
   },
   "dependencies": {
-    "@walaware/design": "github:walaware/design#v0.9.0",
+    "@walaware/design": "github:walaware/design#v0.9.3",
     "leaflet": "^1.9.4",
     "nodemailer": "^9.0.1",
     "pocketbase": "^0.26.2"
