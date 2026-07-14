@@ -9,6 +9,7 @@ import { avatarUrl } from './userAvatar.js';
 import { displayName } from '../displayName.js';
 import { getMembership, joinTrip } from './membership.js';
 import { areFriends, listFriends } from './friends.js';
+import { raise, resolve } from './notifications.js';
 
 /**
  * My accepted friends who aren't already on this trip (members or already
@@ -75,21 +76,32 @@ export async function inviteFriendToTrip(pb, trip, inviterMembership, inviteeUse
     .getList(1, 1, {
       filter: pb.filter('trip = {:t} && user = {:u}', { t: trip.id, u: inviteeUserId })
     });
+  let invitationId;
   if (existing.items[0]) {
-    await pb.collection('trip_invitations').update(existing.items[0].id, {
+    invitationId = existing.items[0].id;
+    await pb.collection('trip_invitations').update(invitationId, {
       status: 'pending',
       role: grantRole,
       invited_by: inviterUserId
     });
   } else {
-    await pb.collection('trip_invitations').create({
+    const created = await pb.collection('trip_invitations').create({
       trip: trip.id,
       user: inviteeUserId,
       invited_by: inviterUserId,
       role: grantRole,
       status: 'pending'
     });
+    invitationId = created.id;
   }
+  // Land it on the invitee's bell as an actionable item.
+  await raise(pb, {
+    user: inviteeUserId,
+    type: 'trip_invitation',
+    actor: inviterUserId,
+    trip: trip.id,
+    ref: invitationId
+  });
   return { ok: true };
 }
 
@@ -144,6 +156,7 @@ export async function acceptInvitation(pb, user, invitationId) {
     skipApproval: true
   });
   await pb.collection('trip_invitations').update(invitationId, { status: 'accepted' });
+  await resolve(pb, { user: user.id, type: 'trip_invitation', ref: invitationId });
   return { share_token: trip.share_token };
 }
 
@@ -157,6 +170,7 @@ export async function declineInvitation(pb, userId, invitationId) {
   const inv = await pb.collection('trip_invitations').getOne(invitationId);
   if (inv.user !== userId) throw new Error('Not your invitation');
   await pb.collection('trip_invitations').update(invitationId, { status: 'declined' });
+  await resolve(pb, { user: userId, type: 'trip_invitation', ref: invitationId });
 }
 
 /**

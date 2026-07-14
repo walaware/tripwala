@@ -2,9 +2,10 @@
   import '../app.css';
   import { AppShell } from '@walaware/design';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import { createShell } from '$lib/shell.svelte.js';
   import { displayName } from '$lib/displayName.js';
+  import { fmtRelative } from '$lib/format.js';
 
   /** @type {{ children: import('svelte').Snippet, data: import('./$types').LayoutData }} */
   let { children, data } = $props();
@@ -13,6 +14,86 @@
   const path = $derived(page.url.pathname);
   // Incoming friend-request count (loaded on the dashboard) → nav badge.
   const friendRequests = $derived(page.data.friendRequests ?? 0);
+
+  // Notification bell (shell surface). The layout load (+layout.server.js) serves
+  // the feed on every route; here we map the server rows to the kit's
+  // NotificationItem shape and attach inline Accept/Decline handlers that POST to
+  // /notifications, then invalidate so the panel re-renders in place.
+  const notifRows = $derived(page.data.notifications ?? []);
+  const notifUnread = $derived(page.data.notificationsUnread ?? 0);
+
+  /** @type {string | null} — the notification currently mid-action (buttons disabled). */
+  let notifBusy = $state(null);
+
+  /**
+   * POST an op to the notifications endpoint. On a trip-invite accept the server
+   * returns the trip's share_token so we can land the user on it.
+   * @param {'markRead'|'markAllRead'|'accept'|'decline'} op
+   * @param {string} [id]
+   */
+  async function notifAction(op, id) {
+    try {
+      const res = await fetch('/notifications', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op, id })
+      });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({}));
+      await invalidateAll();
+      if (body?.share_token) await goto(`/${body.share_token}`);
+    } catch (_) {
+      // Network hiccup — leave the item in place; the next open re-fetches.
+    }
+  }
+
+  async function actOnNotif(/** @type {string} */ id, /** @type {'accept'|'decline'} */ op) {
+    if (notifBusy) return;
+    notifBusy = id;
+    try {
+      await notifAction(op, id);
+    } finally {
+      notifBusy = null;
+    }
+  }
+
+  const notifications = $derived(
+    user
+      ? {
+          unread: notifUnread,
+          // Opening the bell marks the feed seen → clears the badge. Items stay in
+          // the list (only `read`, not dismissed) so they're still actionable.
+          onOpen: notifUnread > 0 ? () => notifAction('markAllRead') : undefined,
+          empty: 'You’re all caught up.',
+          items: notifRows.map((/** @type {any} */ n) => ({
+            key: n.id,
+            icon: n.type === 'friend_request' ? '👋' : '🧭',
+            title: n.title,
+            meta:
+              n.type === 'trip_invitation' && n.trip?.name
+                ? `${n.trip.name} · ${fmtRelative(n.created)}`
+                : fmtRelative(n.created),
+            read: n.read,
+            actions: [
+              {
+                key: 'accept',
+                label: n.type === 'friend_request' ? 'Accept' : 'Join',
+                variant: 'primary',
+                disabled: notifBusy === n.id,
+                onClick: () => actOnNotif(n.id, 'accept')
+              },
+              {
+                key: 'decline',
+                label: 'Decline',
+                variant: 'ghost',
+                disabled: notifBusy === n.id,
+                onClick: () => actOnNotif(n.id, 'decline')
+              }
+            ]
+          }))
+        }
+      : null
+  );
   // The trip currently in view, if any — settings is a per-trip surface.
   const tripToken = $derived(page.params.share_token ?? null);
 
@@ -106,6 +187,7 @@
     app="tripwala"
     {nav}
     {account}
+    {notifications}
     {onSettings}
     {settingsActive}
     {back}

@@ -155,3 +155,26 @@ export function fmtDateRange(start, end) {
   if (s) return s.toLocaleDateString('en-US', { ...opts, year: 'numeric' });
   return '';
 }
+
+/**
+ * Compact relative time for feeds ("just now", "5m", "3h", "2d", "5w"), falling
+ * back to a short date past ~8 weeks. Returns '' on empty/invalid.
+ * @param {string | null | undefined} value ISO/PB timestamp
+ * @param {number} [now] epoch ms to compare against (defaults to Date.now())
+ */
+export function fmtRelative(value, now = Date.now()) {
+  if (!value) return '';
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return '';
+  const secs = Math.max(0, Math.round((now - t) / 1000));
+  if (secs < 45) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.round(days / 7);
+  if (weeks <= 8) return `${weeks}w`;
+  return fmtMonthDay(value);
+}

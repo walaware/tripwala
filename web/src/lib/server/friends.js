@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { avatarUrl } from './userAvatar.js';
 import { displayName } from '../displayName.js';
+import { raise, resolve } from './notifications.js';
 
 /**
  * Canonicalize a pair of user ids into { user_low, user_high } with low < high.
@@ -76,14 +77,18 @@ export async function sendFriendRequest(pb, meId, otherId) {
     // pending: mine → leave it; theirs → both sides asked, so accept.
     if (existing.requested_by === meId) return { status: 'pending' };
     await pb.collection('friendships').update(existing.id, { status: 'accepted' });
+    // Both sides asked: the request that was waiting on me is now settled.
+    await resolve(pb, { user: meId, type: 'friend_request', ref: existing.id });
     return { status: 'accepted' };
   }
 
   const { user_low, user_high } = orderPair(meId, otherId);
   try {
-    await pb
+    const row = await pb
       .collection('friendships')
       .create({ user_low, user_high, requested_by: meId, status: 'pending' });
+    // Notify the addressee that a request is waiting for them.
+    await raise(pb, { user: otherId, type: 'friend_request', actor: meId, ref: row.id });
     return { status: 'pending' };
   } catch (_) {
     // Lost a race on the unique pair index — re-read and reconcile.
@@ -91,6 +96,7 @@ export async function sendFriendRequest(pb, meId, otherId) {
     if (now?.status === 'accepted') return { status: 'accepted' };
     if (now && now.requested_by !== meId) {
       await pb.collection('friendships').update(now.id, { status: 'accepted' });
+      await resolve(pb, { user: meId, type: 'friend_request', ref: now.id });
       return { status: 'accepted' };
     }
     return { status: 'pending' };
@@ -111,7 +117,9 @@ export async function acceptFriendRequest(pb, meId, rowId) {
   if (!inPair) throw new Error('Not your request');
   if (row.status === 'accepted') return row;
   if (row.requested_by === meId) throw new Error('You cannot accept your own request');
-  return pb.collection('friendships').update(rowId, { status: 'accepted' });
+  const updated = await pb.collection('friendships').update(rowId, { status: 'accepted' });
+  await resolve(pb, { user: meId, type: 'friend_request', ref: rowId });
+  return updated;
 }
 
 /**
@@ -126,6 +134,10 @@ export async function removeFriendship(pb, meId, rowId) {
   const row = await pb.collection('friendships').getOne(rowId);
   if (row.user_low !== meId && row.user_high !== meId) throw new Error('Not your friendship');
   await pb.collection('friendships').delete(rowId);
+  // The pending request's notification always belongs to the addressee (the side
+  // that didn't initiate) — clear it whether this is a decline or a cancel.
+  const addressee = row.requested_by === row.user_low ? row.user_high : row.user_low;
+  await resolve(pb, { user: addressee, type: 'friend_request', ref: rowId });
 }
 
 /**

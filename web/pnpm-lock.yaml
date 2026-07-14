@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@walaware/design':
-        specifier: github:walaware/design#v0.9.3
-        version: https://codeload.github.com/walaware/design/tar.gz/f73e73ae637e09307ba1cdc2c74d19e81d330541(svelte@5.56.3)(tailwindcss@4.3.1)
+        specifier: github:walaware/design#v0.10.0
+        version: https://codeload.github.com/walaware/design/tar.gz/19782540713845930d4e4f6e150672594ba7f600(svelte@5.56.3)(tailwindcss@4.3.1)
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -575,9 +575,9 @@ packages:
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
-  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/f73e73ae637e09307ba1cdc2c74d19e81d330541':
-    resolution: {gitHosted: true, integrity: sha512-21R0/I+BN4UCpk82ZYjIL+P3tyPlgkAuIzwQt8ffxDxeOrbzdFaN6zhP1XYkila7srcnc2XFZKa/HjcOJnnBcw==, tarball: https://codeload.github.com/walaware/design/tar.gz/f73e73ae637e09307ba1cdc2c74d19e81d330541}
-    version: 0.9.3
+  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/19782540713845930d4e4f6e150672594ba7f600':
+    resolution: {gitHosted: true, integrity: sha512-hQnACqLu1EwpJjj+MGw6AbL6iOGAwu7ZMFNR0UREMBpqjdphHtFI5dJ8CmccCTooq3pXUJhJVQKVXqCx0F9bpg==, tarball: https://codeload.github.com/walaware/design/tar.gz/19782540713845930d4e4f6e150672594ba7f600}
+    version: 0.10.0
     peerDependencies:
       svelte: ^5.20.0
       tailwindcss: ^4.0.0
@@ -1304,7 +1304,7 @@ snapshots:
 
   '@types/trusted-types@2.0.7': {}
 
-  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/f73e73ae637e09307ba1cdc2c74d19e81d330541(svelte@5.56.3)(tailwindcss@4.3.1)':
+  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/19782540713845930d4e4f6e150672594ba7f600(svelte@5.56.3)(tailwindcss@4.3.1)':
     dependencies:
       svelte: 5.56.3
     optionalDependencies:

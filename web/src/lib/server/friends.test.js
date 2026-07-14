@@ -7,19 +7,24 @@ import assert from 'node:assert/strict';
 import { orderPair, sendFriendRequest, getFriendship } from './friends.js';
 
 /**
- * Minimal fake pb supporting exactly what getFriendship/sendFriendRequest use:
- * pb.filter(tpl, params) → params (carried through), and a `friendships`
- * collection matched on the (user_low, user_high) pair.
+ * Minimal fake pb. Collection-aware: each collection name gets its own row store,
+ * so the `notifications` writes that sendFriendRequest now fires (raise/resolve)
+ * land in a separate bucket and don't inflate the `friendships` count the tests
+ * assert on. `_rows` still points at the friendships store for convenience.
  */
 /** @returns {any} */
 function fakePb() {
-  /** @type {any[]} */
-  const rows = [];
+  /** @type {Record<string, any[]>} */
+  const stores = {};
+  /** @param {string} name */
+  const store = (name) => (stores[name] ??= []);
   let seq = 0;
   return {
     /** @param {string} _tpl @param {any} params */
     filter: (_tpl, params) => params,
-    collection() {
+    /** @param {string} name */
+    collection(name) {
+      const rows = store(name);
       return {
         /** @param {number} _p @param {number} _n @param {any} opts */
         getList: async (_p, _n, opts) => {
@@ -29,15 +34,29 @@ function fakePb() {
           );
           return { items: items.slice(0, 1) };
         },
+        /** @param {any} f */
+        getFirstListItem: async (f) => {
+          const row = rows.find(
+            (r) =>
+              (f.u == null || r.user === f.u) &&
+              (f.t == null || r.type === f.t) &&
+              (f.r == null || r.ref === f.r)
+          );
+          if (!row) throw new Error('not found');
+          return row;
+        },
         /** @param {string} id */
         getOne: async (id) => rows.find((r) => r.id === id),
         /** @param {any} data */
         create: async (data) => {
-          // Emulate the unique (user_low, user_high) index.
-          if (rows.some((r) => r.user_low === data.user_low && r.user_high === data.user_high)) {
+          // Emulate the unique (user_low, user_high) index (friendships only).
+          if (
+            data.user_low != null &&
+            rows.some((r) => r.user_low === data.user_low && r.user_high === data.user_high)
+          ) {
             throw new Error('unique constraint');
           }
-          const row = { id: `f${++seq}`, ...data };
+          const row = { id: `${name[0]}${++seq}`, ...data };
           rows.push(row);
           return row;
         },
@@ -49,7 +68,9 @@ function fakePb() {
         }
       };
     },
-    _rows: rows
+    get _rows() {
+      return store('friendships');
+    }
   };
 }
 
