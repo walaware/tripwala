@@ -14,6 +14,9 @@ RUN wget -q "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VE
     && rm /tmp/pb.zip
 
 COPY pb_migrations /pb/pb_migrations
+# Curated API Access surface (/api/x/v1/*). PocketBase loads JS hooks from
+# pb_hooks/ automatically on serve. See pb_hooks/api_x.pb.js and docs/for-api.md.
+COPY pb_hooks /pb/pb_hooks
 
 EXPOSE 8090
 

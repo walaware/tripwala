@@ -179,6 +179,12 @@ Captured, not yet built — each needs its own pass:
   [`docs/ai-features.md`](./docs/ai-features.md).
 - **Programmatic / MCP API** — see [`docs/api-layer.md`](./docs/api-layer.md).
 
+**API access (shipped, scoped):** beyond that future MCP design, tripwala adopts
+the walaware [API Access standard](https://github.com/walaware/.github/blob/main/docs/api-access.md)
+— a scoped, revocable, **tailnet-only** token surface (curated `/api/x/v1/*`,
+never superuser) for programmatic read + narrow writes. See
+[`docs/for-api.md`](./docs/for-api.md).
+
 ## Built with AI
 
 tripwala is a **heavily AI-developed codebase** — most of the code, docs, and
