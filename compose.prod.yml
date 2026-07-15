@@ -68,6 +68,11 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80" # front this with your Cloudflare Tunnel / reverse proxy
+      # API Access — curated /api/x/* surface, bound to loopback only. The host
+      # fronts it with Tailscale (tailnet-only), never the public internet:
+      #   tailscale serve --bg --https 443 http://127.0.0.1:8091
+      # See caddy/Caddyfile (the :8091 site) and docs/for-api.md.
+      - "127.0.0.1:8091:8091"
     volumes:
       - caddy_data:/data
     depends_on:

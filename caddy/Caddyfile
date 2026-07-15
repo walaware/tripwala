@@ -55,3 +55,29 @@
 		reverse_proxy {$WEB_UPSTREAM:web:3000}
 	}
 }
+
+# --- API Access: tailnet-only curated surface (walaware API Access standard) ---
+#
+# A SEPARATE site from the public :80 edge above (which is unchanged). It exposes
+# ONLY the curated /api/x/* routes — never the raw /api/collections/* API, never
+# the /_/ admin dashboard. Consumers authenticate with a scoped `api_clients`
+# token (see pb_hooks/api_x.pb.js and docs/for-api.md); the token is NOT a
+# superuser.
+#
+# This listens on plain HTTP :8091, published to 127.0.0.1 only (see
+# compose.prod.yml). The host fronts it with Tailscale, which terminates TLS and
+# restricts reachability to the trusted tailnet — the site is never on the public
+# internet:
+#
+#   tailscale serve --bg --https 443 http://127.0.0.1:8091
+#
+# Consumers then reach:  https://<host>.<tailnet>.ts.net/api/x/v1/...  (= TRIPWALA_API_URL)
+:8091 {
+	handle /api/x/* {
+		reverse_proxy {$PB_UPSTREAM:pocketbase:8090}
+	}
+	# Everything else (raw API, /_/ dashboard, files) 404s on this site.
+	handle {
+		respond 404
+	}
+}
