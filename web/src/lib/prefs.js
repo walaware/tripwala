@@ -26,3 +26,19 @@ export function tempUnit(user) {
 export function openMeteoUnit(/** @type {TempUnit} */ unit) {
   return unit === 'C' ? 'celsius' : 'fahrenheit';
 }
+
+/** @typedef {'apple' | 'google'} MapApp */
+
+/** The map app that "Navigate" links open. Default is Apple Maps — the app's
+ * preferred default; anything unrecognized (incl. unset, or an anonymous
+ * share-link viewer with no user) falls back to it. */
+export const DEFAULT_MAP_APP = /** @type {MapApp} */ ('apple');
+
+/**
+ * The user's preferred map app, normalized. See $lib/maps.js for the link builders.
+ * @param {{ map_app?: string } | null | undefined} user
+ * @returns {MapApp}
+ */
+export function mapApp(user) {
+  return user?.map_app === 'google' ? 'google' : DEFAULT_MAP_APP;
+}

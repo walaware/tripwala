@@ -41,6 +41,23 @@
     };
   };
 
+  // Preferred map app for the itinerary "Navigate" links (default Apple Maps).
+  // Same one-submit-button-per-value pattern as the units form.
+  const MAP_APPS = /** @type {const} */ ([
+    { value: 'apple', label: 'Apple Maps' },
+    { value: 'google', label: 'Google Maps' }
+  ]);
+  // svelte-ignore state_referenced_locally
+  let mapApp = $state(data.mapApp === 'google' ? 'google' : 'apple');
+  let savingMaps = $state(false);
+  const saveMaps = () => {
+    savingMaps = true;
+    return async (/** @type {{ update: () => Promise<void> }} */ { update }) => {
+      await update();
+      savingMaps = false;
+    };
+  };
+
   // The tier NEW trips start at. Same one-submit-button-per-value trick as the
   // units form. Existing trips are untouched by changing this.
   // svelte-ignore state_referenced_locally
@@ -186,6 +203,35 @@
                   : 'text-cocoa-400'}"
               >
                 °{u}
+              </button>
+            {/each}
+          </div>
+        </div>
+      </form>
+
+      <form method="POST" action="?/maps" use:enhance={saveMaps} class="mt-4 border-t border-sand-200 pt-4">
+        <div class="flex items-center justify-between gap-3">
+          <span class="min-w-0">
+            <span class="block font-body text-[14px] font-extrabold text-text-strong">Maps</span>
+            <span class="block font-body text-[12px] font-bold text-text-muted">
+              Which app the itinerary’s Navigate buttons open
+            </span>
+          </span>
+          <div class="flex flex-none rounded-lg bg-sand-100 p-0.5" role="group" aria-label="Map app">
+            {#each MAP_APPS as m}
+              <button
+                type="submit"
+                name="map_app"
+                value={m.value}
+                onclick={() => (mapApp = m.value)}
+                disabled={savingMaps}
+                aria-pressed={mapApp === m.value}
+                class="rounded-md px-3 py-1.5 font-body text-[13px] font-extrabold transition-colors {mapApp ===
+                m.value
+                  ? 'bg-white text-cocoa-900 shadow-sm'
+                  : 'text-cocoa-400'}"
+              >
+                {m.label}
               </button>
             {/each}
           </div>

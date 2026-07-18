@@ -20,6 +20,7 @@ export async function load({ locals }) {
   let nickname = locals.user.nickname || '';
   let showLastName = locals.user.show_last_name === true;
   let tempUnit = locals.user.temp_unit || '';
+  let mapAppPref = locals.user.map_app || '';
   let tripVisibility = defaultTripVisibility(locals.user);
   try {
     const pb = await superuserPb();
@@ -28,6 +29,7 @@ export async function load({ locals }) {
     nickname = rec.nickname || '';
     showLastName = rec.show_last_name === true;
     tempUnit = rec.temp_unit || '';
+    mapAppPref = rec.map_app || '';
     tripVisibility = defaultTripVisibility(rec);
   } catch (_) {
     /* fall back to the cookie copy */
@@ -39,6 +41,7 @@ export async function load({ locals }) {
     nickname,
     showLastName,
     tempUnit,
+    mapApp: mapAppPref,
     tripVisibility,
     isAdmin: await isAdmin(locals.user)
   };
@@ -113,6 +116,22 @@ export const actions = {
     const pb = await superuserPb();
     try {
       await pb.collection('users').update(locals.user.id, { temp_unit });
+    } catch (_) {
+      return fail(400, { error: 'Could not save your preferences.' });
+    }
+    await refreshSession(locals);
+    throw redirect(303, '/profile');
+  },
+
+  // Preferred map app for the itinerary "Navigate" links. Whitelisted, same as
+  // the units pref; empty/anything-else reads as Apple Maps in app code.
+  maps: async ({ request, locals }) => {
+    if (!locals.user) return fail(401, { error: 'Please sign in again.' });
+    const form = await request.formData();
+    const map_app = form.get('map_app') === 'google' ? 'google' : 'apple';
+    const pb = await superuserPb();
+    try {
+      await pb.collection('users').update(locals.user.id, { map_app });
     } catch (_) {
       return fail(400, { error: 'Could not save your preferences.' });
     }

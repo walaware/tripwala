@@ -4,15 +4,17 @@
   import { Card, Avatar, Button, EmptyState, Tooltip } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { tripDays, fmtWeekday, fmtMonthDay, fmtDateRange, tripLength } from '$lib/format.js';
+  import { navUrl } from '$lib/maps.js';
 
   /**
-   * @typedef {{ id: string, date: string, time: string, label: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
+   * @typedef {{ id: string, date: string, time: string, label: string, place: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
    */
 
   /**
    * @type {{
    *   shareToken: string,
    *   itineraryItems: ItinItem[],
+   *   mapApp?: 'apple'|'google',
    *   trip: { start_date?: string, end_date?: string },
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean,
@@ -24,6 +26,7 @@
   let {
     shareToken,
     itineraryItems,
+    mapApp = 'apple',
     trip,
     currentParticipantId,
     ownerMode = false,
@@ -65,12 +68,14 @@
   let addKey = $state(null);
   let niLabel = $state('');
   let niTime = $state('');
+  let niPlace = $state('');
   /** @type {'fixed'|'flexible'} */
   let niKind = $state('flexible');
   // One open item editor at a time.
   let editId = $state('');
   let eLabel = $state('');
   let eTime = $state('');
+  let ePlace = $state('');
   /** @type {'fixed'|'flexible'} */
   let eKind = $state('flexible');
 
@@ -93,6 +98,7 @@
     addKey = key;
     niLabel = '';
     niTime = '';
+    niPlace = '';
     niKind = 'flexible';
   }
   async function submitAdd() {
@@ -100,7 +106,7 @@
     const date = addKey || undefined;
     // Undated entries are always suggestions (decisions to vote on).
     const kind = addKey === '' ? 'flexible' : niKind;
-    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), date, kind });
+    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), date, kind });
     addKey = null;
   }
 
@@ -109,12 +115,13 @@
     editId = it.id;
     eLabel = it.label;
     eTime = it.time;
+    ePlace = it.place;
     eKind = it.kind;
   }
   async function submitEdit() {
     if (!eLabel.trim()) return;
     const id = editId;
-    await run({ op: 'itin_item_update', itemId: id, label: eLabel.trim(), time: eTime.trim(), kind: eKind });
+    await run({ op: 'itin_item_update', itemId: id, label: eLabel.trim(), time: eTime.trim(), place: ePlace.trim(), kind: eKind });
     editId = '';
   }
 
@@ -199,6 +206,13 @@
           class="flex-1 rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
         />
       </div>
+      <input
+        bind:value={ePlace}
+        placeholder="📍 Navigate to… (place, address, or lat,lng)"
+        maxlength="300"
+        onkeydown={(e) => e.key === 'Enter' && submitEdit()}
+        class="rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
+      />
       <div class="flex items-center justify-between gap-2">
         {@render kindToggle(eKind, (k) => (eKind = k))}
         <div class="flex gap-2">
@@ -217,7 +231,21 @@
 
       <span class="min-w-0 flex-1 truncate font-body text-[14.5px] font-extrabold text-cocoa-900">{it.label}</span>
 
-      <!-- Right cluster: upvote (flexible only) · creator avatar · hover manage. -->
+      <!-- Right cluster: navigate · upvote (flexible only) · creator avatar · hover manage. -->
+      {#if it.place}
+        <a
+          href={navUrl(it.place, mapApp)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Navigate to {it.place}"
+          title="Navigate — {it.place}"
+          class="flex flex-none items-center gap-1 rounded-full bg-coral-100 px-2 py-1 font-body text-[12px] font-extrabold text-coral-600 transition hover:bg-coral-500 hover:text-white"
+        >
+          <span class="leading-none" aria-hidden="true">🧭</span>
+          <span class="hidden leading-none sm:inline">Navigate</span>
+        </a>
+      {/if}
+
       {#if it.kind === 'flexible'}
         <button
           type="button"
@@ -267,6 +295,13 @@
         class="flex-1 rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
       />
     </div>
+    <input
+      bind:value={niPlace}
+      placeholder="📍 Navigate to… (place, address, or lat,lng) — optional"
+      maxlength="300"
+      onkeydown={(e) => e.key === 'Enter' && submitAdd()}
+      class="rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
+    />
     <div class="flex items-center justify-between gap-2">
       {#if !decisions}
         {@render kindToggle(niKind, (k) => (niKind = k))}

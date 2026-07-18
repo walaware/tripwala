@@ -9,6 +9,7 @@ import { tripOg } from '$lib/server/og.js';
 import { loadPlanning } from '$lib/server/planning.js';
 import { cloneTrip } from '$lib/server/cloneTrip.js';
 import { listInvitableFriends } from '$lib/server/invitations.js';
+import { mapApp } from '$lib/prefs.js';
 
 /**
  * Resolve a trip row by share token, or throw the right HTTP error.
@@ -133,6 +134,7 @@ export async function load({ params, locals, url }) {
   return {
     ...data,
     status: trip.status || 'confirmed',
+    mapApp: mapApp(locals.user), // which map app the Navigate links open
     membership: membershipOut,
     isOrganizer,
     orphans,

@@ -271,7 +271,7 @@
   {/if}
   {#if !isHidden('itinerary')}
     <section id="itinerary" class="trip-section" class:is-collapsed={collapsed.has('itinerary')}>
-      <ItinerarySection shareToken={trip.share_token} itineraryItems={data.itineraryItems ?? []} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} collapsed={collapsed.has('itinerary')} onToggle={() => toggleCollapse('itinerary')} />
+      <ItinerarySection shareToken={trip.share_token} itineraryItems={data.itineraryItems ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} collapsed={collapsed.has('itinerary')} onToggle={() => toggleCollapse('itinerary')} />
     </section>
   {/if}
   {#if !isHidden('map')}
