@@ -7,7 +7,7 @@
   import { navUrl } from '$lib/maps.js';
 
   /**
-   * @typedef {{ id: string, date: string, time: string, label: string, place: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
+   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
    */
 
   /**
@@ -69,6 +69,7 @@
   let niLabel = $state('');
   let niTime = $state('');
   let niPlace = $state('');
+  let niNote = $state('');
   /** @type {'fixed'|'flexible'} */
   let niKind = $state('flexible');
   // One open item editor at a time.
@@ -76,6 +77,7 @@
   let eLabel = $state('');
   let eTime = $state('');
   let ePlace = $state('');
+  let eNote = $state('');
   /** @type {'fixed'|'flexible'} */
   let eKind = $state('flexible');
 
@@ -99,6 +101,7 @@
     niLabel = '';
     niTime = '';
     niPlace = '';
+    niNote = '';
     niKind = 'flexible';
   }
   async function submitAdd() {
@@ -106,7 +109,7 @@
     const date = addKey || undefined;
     // Undated entries are always suggestions (decisions to vote on).
     const kind = addKey === '' ? 'flexible' : niKind;
-    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), date, kind });
+    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), note: niNote.trim(), date, kind });
     addKey = null;
   }
 
@@ -116,12 +119,13 @@
     eLabel = it.label;
     eTime = it.time;
     ePlace = it.place;
+    eNote = it.note;
     eKind = it.kind;
   }
   async function submitEdit() {
     if (!eLabel.trim()) return;
     const id = editId;
-    await run({ op: 'itin_item_update', itemId: id, label: eLabel.trim(), time: eTime.trim(), place: ePlace.trim(), kind: eKind });
+    await run({ op: 'itin_item_update', itemId: id, label: eLabel.trim(), time: eTime.trim(), place: ePlace.trim(), note: eNote.trim(), kind: eKind });
     editId = '';
   }
 
@@ -213,6 +217,13 @@
         onkeydown={(e) => e.key === 'Enter' && submitEdit()}
         class="rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
       />
+      <textarea
+        bind:value={eNote}
+        placeholder="Details (optional) — the why / how, shown beneath the title"
+        maxlength="600"
+        rows="2"
+        class="resize-y rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[13.5px] font-semibold text-cocoa-900 outline-none focus:border-coral-400"
+      ></textarea>
       <div class="flex items-center justify-between gap-2">
         {@render kindToggle(eKind, (k) => (eKind = k))}
         <div class="flex gap-2">
@@ -222,7 +233,8 @@
       </div>
     </div>
   {:else}
-    <div class="group flex items-center gap-2 rounded-lg border-2 border-sand-200 bg-white px-2.5 py-2">
+    <div class="group flex flex-col gap-1 rounded-lg border-2 border-sand-200 bg-white px-2.5 py-2">
+      <div class="flex items-center gap-2">
       {#if it.time}
         <span class="flex-none rounded-full px-2 py-0.5 font-body text-[12px] font-extrabold {it.kind === 'fixed' ? 'bg-sand-300 text-cocoa-700' : 'bg-sand-200 text-cocoa-600'}">{it.time}</span>
       {:else if it.kind === 'fixed'}
@@ -272,6 +284,11 @@
           <button type="button" aria-label="Remove" onclick={() => removeItem(it.id)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">✕</button>
         </span>
       {/if}
+      </div>
+
+      {#if it.note}
+        <p class="whitespace-pre-line font-body text-[13px] font-semibold leading-snug text-cocoa-600">{it.note}</p>
+      {/if}
     </div>
   {/if}
 {/snippet}
@@ -302,6 +319,13 @@
       onkeydown={(e) => e.key === 'Enter' && submitAdd()}
       class="rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
     />
+    <textarea
+      bind:value={niNote}
+      placeholder="Details (optional) — the why / how, shown beneath the title"
+      maxlength="600"
+      rows="2"
+      class="resize-y rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[13.5px] font-semibold text-cocoa-900 outline-none focus:border-coral-400"
+    ></textarea>
     <div class="flex items-center justify-between gap-2">
       {#if !decisions}
         {@render kindToggle(niKind, (k) => (niKind = k))}

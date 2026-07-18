@@ -35,6 +35,8 @@ export function shapeItinerary(items, votes, nameById, avatarById, myParticipant
     label: it.label || '',
     // Optional map destination — drives the "Navigate" deep link (see $lib/maps.js).
     place: it.place || '',
+    // Optional longer detail, shown wrapped beneath the short label.
+    note: it.note || '',
     // Default empty/legacy kind to 'flexible' (pre-v2 items were votable).
     kind: it.kind === 'fixed' ? 'fixed' : 'flexible',
     sortOrder: it.sort_order ?? 0,

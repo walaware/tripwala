@@ -39,14 +39,17 @@ test('carries creator name + avatar', () => {
   assert.equal(item.createdByAvatar, 'https://img/ana.png');
 });
 
-test('carries place (empty when absent) for the navigate link', () => {
+test('carries place + note (empty when absent)', () => {
   const items = [
-    { id: 'a', date: '', label: 'Olmsted Point', kind: 'fixed', sort_order: 0, place: 'Olmsted Point, Yosemite' },
+    { id: 'a', date: '', label: 'Olmsted Point', kind: 'fixed', sort_order: 0, place: 'Olmsted Point, Yosemite', note: 'The pullouts are the show.' },
     { id: 'b', date: '', label: 'No place', kind: 'flexible', sort_order: 1 }
   ];
-  const map = Object.fromEntries(shapeItinerary(items, [], names, avatars, null).map((x) => [x.id, x.place]));
-  assert.equal(map.a, 'Olmsted Point, Yosemite');
-  assert.equal(map.b, '');
+  const shaped = shapeItinerary(items, [], names, avatars, null);
+  const map = Object.fromEntries(shaped.map((x) => [x.id, x]));
+  assert.equal(map.a.place, 'Olmsted Point, Yosemite');
+  assert.equal(map.a.note, 'The pullouts are the show.');
+  assert.equal(map.b.place, '');
+  assert.equal(map.b.note, '');
 });
 
 test('orders: dated chronological, fixed-before-flexible per day, undated last', () => {

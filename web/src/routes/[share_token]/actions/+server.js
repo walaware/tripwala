@@ -332,6 +332,7 @@ export async function POST({ params, request, locals, url }) {
         if (date && !DATE_ONLY.test(date)) throw error(400, 'Bad date');
         const time = String(body.time ?? '').trim().slice(0, 40);
         const place = String(body.place ?? '').trim().slice(0, 300);
+        const note = String(body.note ?? '').trim().slice(0, 600);
         const kind = body.kind === 'fixed' ? 'fixed' : 'flexible';
         const sameDay = pb.filter('trip = {:t} && date = {:d}', {
           t: trip.id,
@@ -343,6 +344,7 @@ export async function POST({ params, request, locals, url }) {
           date: date ? `${date} 00:00:00.000Z` : '',
           time,
           place,
+          note,
           label,
           kind,
           sort_order: count,
@@ -364,6 +366,7 @@ export async function POST({ params, request, locals, url }) {
         }
         if (body.time !== undefined) data.time = String(body.time ?? '').trim().slice(0, 40);
         if (body.place !== undefined) data.place = String(body.place ?? '').trim().slice(0, 300);
+        if (body.note !== undefined) data.note = String(body.note ?? '').trim().slice(0, 600);
         if (body.kind !== undefined) data.kind = body.kind === 'fixed' ? 'fixed' : 'flexible';
         if (body.date !== undefined) {
           const date = String(body.date ?? '').slice(0, 10);

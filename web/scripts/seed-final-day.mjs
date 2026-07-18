@@ -43,62 +43,66 @@ console.log(`Seeding final-day itinerary onto "${trip.name}" (${trip.id}) for ${
 
 const pbDate = `${ITIN_DATE} 00:00:00.000Z`;
 
-// Each entry is a `fixed` schedule item. `place` is a free-text destination that
-// both Apple and Google accept as a directions target (see $lib/maps.js).
+// Each entry is a `fixed` schedule item: a short `label` (the one-line title),
+// `place` (a free-text directions target both Apple + Google accept — see
+// $lib/maps.js), and a longer `note` (the descriptive prose, shown wrapped
+// beneath the title). Keyed by `time` for idempotent upserts.
 const items = [
   {
     time: '12:45–2:45pm',
-    label: 'Picnic lunch + dog downtime — Lake Mary / Twin Lakes basin. Shaded pullout, cook by the water. Buffer block: nap the dogs, no clock pressure.',
-    place: 'Lake Mary, Mammoth Lakes, CA'
+    label: 'Picnic lunch + dog downtime',
+    place: 'Lake Mary, Mammoth Lakes, CA',
+    note: 'Drive up into the Lake Mary / Twin Lakes basin, grab a shaded pullout, cook lunch by the water. This is your buffer block — nap the dogs, no clock pressure.'
   },
   {
     time: 'Before leaving',
-    label: 'Top off gas in Mammoth. Nothing reliable between Lee Vining and Yosemite’s west side.',
-    place: 'gas station Mammoth Lakes, CA'
+    label: 'Top off gas in Mammoth',
+    place: 'gas station Mammoth Lakes, CA',
+    note: 'Food’s handled by the kitchen; fuel is the one gap. Nothing reliable between Lee Vining and Yosemite’s west side.'
   },
   {
     time: '~3:30pm',
-    label: 'Departure — 395 north to Lee Vining (~35 min). Last fuel there if you skipped Mammoth.',
-    place: 'Lee Vining, CA'
+    label: 'Departure — 395 north to Lee Vining',
+    place: 'Lee Vining, CA',
+    note: '~35 min. Last fuel there if you skipped Mammoth.'
   },
   {
     time: '~4:15pm',
-    label: 'Ellery / Tioga Lake (just east of the gate). Outside the park — looser dog rules. Final coffee / leg-stretch before the crossing.',
-    place: 'Tioga Lake, CA'
+    label: 'Ellery / Tioga Lake',
+    place: 'Tioga Lake, CA',
+    note: 'Just east of the gate. Outside the park, so looser dog rules — good final coffee / leg-stretch before the crossing.'
   },
   {
     time: '4:30–6:15pm',
-    label: 'Tioga crossing — leashed photo pullouts only (dogs banned from all Yosemite trails): Tioga Lake, Olmsted Point, Tenaya Lake. The pullouts are the show.',
-    place: 'Olmsted Point, Yosemite National Park'
+    label: 'Tioga crossing',
+    place: 'Olmsted Point, Yosemite National Park',
+    note: 'Leashed photo pullouts only (dogs banned from all Yosemite trails): Tioga Lake, Olmsted Point, Tenaya Lake. The pullouts are the show.'
   },
   {
     time: '~6:30pm',
-    label: 'Crane Flat (west gate), then ~4 hr → home ~10:30–11:30pm.',
-    place: 'Crane Flat, Yosemite National Park'
+    label: 'Crane Flat (west gate)',
+    place: 'Crane Flat, Yosemite National Park',
+    note: 'Then ~4 hr → home ~10:30–11:30pm.'
   }
 ];
 
-// Existing items on this trip+day, to skip re-inserting on re-run.
+// Upsert by (trip, date, time): update a matching row in place (so re-running
+// after the label/note split rewrites the earlier long-label seed), else create.
 const existing = await pb.collection('itinerary_items').getFullList({
   filter: pb.filter('trip = {:t} && date = {:d}', { t: trip.id, d: pbDate })
 });
-const seen = new Set(existing.map((i) => i.label));
+const byTime = new Map(existing.map((r) => [r.time, r]));
 
 let order = existing.length;
 for (const it of items) {
-  if (seen.has(it.label)) {
-    console.log('skip (exists):', it.time);
-    continue;
+  const fields = { time: it.time, label: it.label, place: it.place, note: it.note, kind: 'fixed' };
+  const match = byTime.get(it.time);
+  if (match) {
+    await pb.collection('itinerary_items').update(match.id, fields);
+    console.log('updated:', it.time, '→', it.label);
+  } else {
+    await pb.collection('itinerary_items').create({ trip: trip.id, date: pbDate, sort_order: order++, ...fields });
+    console.log('created:', it.time, '→', it.label);
   }
-  await pb.collection('itinerary_items').create({
-    trip: trip.id,
-    date: pbDate,
-    time: it.time,
-    label: it.label,
-    place: it.place,
-    kind: 'fixed',
-    sort_order: order++
-  });
-  console.log('created:', it.time, '→', it.place);
 }
 console.log('Done.');
