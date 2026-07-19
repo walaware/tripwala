@@ -4,6 +4,7 @@
   import { tripAction } from '$lib/tripClient.js';
   import OverviewSection from '$lib/sections/OverviewSection.svelte';
   import ItinerarySection from '$lib/sections/ItinerarySection.svelte';
+  import BookingsSection from '$lib/sections/BookingsSection.svelte';
   import MapSection from '$lib/sections/MapSection.svelte';
   import PeopleSection from '$lib/sections/PeopleSection.svelte';
   import GearSection from '$lib/sections/GearSection.svelte';
@@ -81,6 +82,7 @@
   const SECTION_NAV = [
     { key: 'overview', label: 'Overview', icon: '✨', href: '#overview' },
     { key: 'itinerary', label: 'Itinerary', icon: '🗓️', href: '#itinerary' },
+    { key: 'bookings', label: 'Bookings', icon: '🎫', href: '#bookings' },
     { key: 'map', label: 'Map', icon: '🗺️', href: '#map' },
     { key: 'crew', label: 'Members', icon: '🙌', href: '#crew' },
     { key: 'gear', label: 'Gear', icon: '🎒', href: '#gear' },
@@ -272,6 +274,11 @@
   {#if !isHidden('itinerary')}
     <section id="itinerary" class="trip-section" class:is-collapsed={collapsed.has('itinerary')}>
       <ItinerarySection shareToken={trip.share_token} itineraryItems={data.itineraryItems ?? []} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} collapsed={collapsed.has('itinerary')} onToggle={() => toggleCollapse('itinerary')} />
+    </section>
+  {/if}
+  {#if !isHidden('bookings')}
+    <section id="bookings" class="trip-section" class:is-collapsed={collapsed.has('bookings')}>
+      <BookingsSection shareToken={trip.share_token} bookings={data.bookings ?? []} {currentParticipantId} {ownerMode} onHide={hideHandler('bookings')} collapsed={collapsed.has('bookings')} onToggle={() => toggleCollapse('bookings')} />
     </section>
   {/if}
   {#if !isHidden('map')}

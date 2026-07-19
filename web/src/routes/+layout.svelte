@@ -122,6 +122,13 @@
       href: '/ideas'
     },
     {
+      key: 'bookings',
+      label: 'Bookings',
+      icon: '🎫',
+      active: path === '/bookings',
+      href: '/bookings'
+    },
+    {
       key: 'calendar',
       label: 'Calendar',
       icon: '📅',

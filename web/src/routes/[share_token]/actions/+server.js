@@ -84,6 +84,45 @@ export async function POST({ params, request, locals, url }) {
 
   const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
+  // Validate + normalize a booking payload (shared by add/update — #4).
+  const BOOKING_TYPES = ['flight', 'stay', 'car', 'other'];
+  const BOOKING_STATUSES = ['planning', 'booked', 'confirmed'];
+  const REFUND_STATES = ['unknown', 'refundable', 'nonrefundable'];
+  /** @param {any} b */
+  function bookingFields(b) {
+    const title = String(b.title ?? '').trim().slice(0, 200);
+    if (!title) throw error(400, 'Give the booking a title');
+    /** @param {any} d */
+    const asDate = (d) => {
+      const s = String(d ?? '').slice(0, 10);
+      if (s && !DATE_ONLY.test(s)) throw error(400, 'Bad date');
+      return s ? `${s} 00:00:00.000Z` : '';
+    };
+    const start = String(b.start_date ?? '').slice(0, 10);
+    const end = String(b.end_date ?? '').slice(0, 10);
+    if (start && end && DATE_ONLY.test(start) && DATE_ONLY.test(end) && end < start) {
+      throw error(400, 'End date is before the start date');
+    }
+    const link = String(b.link ?? '').trim();
+    if (link && !/^https?:\/\/.+/i.test(link)) throw error(400, 'Enter a full http(s):// URL');
+    const rawCost = b.cost;
+    const cost = rawCost === '' || rawCost === null || rawCost === undefined ? '' : Math.max(0, Number(rawCost) || 0);
+    return {
+      type: BOOKING_TYPES.includes(b.type) ? b.type : 'other',
+      title,
+      status: BOOKING_STATUSES.includes(b.status) ? b.status : 'planning',
+      refundable: REFUND_STATES.includes(b.refundable) ? b.refundable : 'unknown',
+      refund_deadline: asDate(b.refund_deadline),
+      start_date: asDate(b.start_date),
+      end_date: asDate(b.end_date),
+      cost,
+      currency: String(b.currency ?? '').trim().slice(0, 8),
+      confirmation: String(b.confirmation ?? '').trim().slice(0, 120),
+      link,
+      notes: String(b.notes ?? '').trim().slice(0, 1000)
+    };
+  }
+
   try {
     switch (op) {
       case 'rsvp': {
@@ -459,6 +498,34 @@ export async function POST({ params, request, locals, url }) {
         if (!isOrganizer) throw error(403, 'Only organizers can edit cities');
         const city = await inTrip('trip_cities', String(body.cityId ?? ''));
         await pb.collection('trip_cities').delete(city.id);
+        break;
+      }
+
+      // ---- Bookings (flights/stays/etc — #4) ----
+      // Any member may add a booking (often a personal flight/room); the person
+      // who added it, or an organizer, may edit/remove it.
+
+      case 'booking_add': {
+        const fields = bookingFields(body);
+        await pb.collection('bookings').create({ trip: trip.id, added_by: me.id, ...fields });
+        break;
+      }
+
+      case 'booking_update': {
+        const b = await inTrip('bookings', String(body.bookingId ?? ''));
+        if (b.added_by !== me.id && !isOrganizer) {
+          throw error(403, 'Only the person who added this (or an organizer) can edit it');
+        }
+        await pb.collection('bookings').update(b.id, bookingFields(body));
+        break;
+      }
+
+      case 'booking_remove': {
+        const b = await inTrip('bookings', String(body.bookingId ?? ''));
+        if (b.added_by !== me.id && !isOrganizer) {
+          throw error(403, 'Only the person who added this (or an organizer) can remove it');
+        }
+        await pb.collection('bookings').delete(b.id);
         break;
       }
 
