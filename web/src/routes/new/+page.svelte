@@ -33,6 +33,9 @@
 
   const origin = $derived(page.url.origin);
   const shareUrl = $derived(created ? `${origin}/${created.share_token}` : '');
+  const inviteUrl = $derived(
+    created ? `${origin}/${created.share_token}?invite=${created.invite_token}` : ''
+  );
   const ownerUrl = $derived(
     created ? `${origin}/${created.share_token}/edit?owner=${created.owner_token}` : ''
   );
@@ -69,10 +72,24 @@
           {:else if created.albumRequested}<br />⚠ Couldn't reach Immich to make the album — retry anytime from trip settings.{/if}
         </p>
 
-        <p class="mb-1.5 mt-5 font-display text-sm font-semibold text-cocoa-900">Share link</p>
+        <p class="mb-1.5 mt-5 font-display text-sm font-semibold text-cocoa-900">Invite link</p>
+        <p class="-mt-1 mb-1.5 font-body text-xs font-bold text-cocoa-500">
+          Send this to people you want on the trip — it lets them sign in and join.
+        </p>
+        <div class="flex gap-2">
+          <input readonly value={inviteUrl} class="{inputClass} flex-1" />
+          <Button variant="primary" size="md" onclick={() => copy(inviteUrl, 'invite')}>
+            {copied === 'invite' ? 'Copied!' : 'Copy'}
+          </Button>
+        </div>
+
+        <p class="mb-1.5 mt-4 font-display text-sm font-semibold text-cocoa-900">Share link (view-only)</p>
+        <p class="-mt-1 mb-1.5 font-body text-xs font-bold text-cocoa-500">
+          A read-only preview anyone can see, but not join. Safe to post publicly.
+        </p>
         <div class="flex gap-2">
           <input readonly value={shareUrl} class="{inputClass} flex-1" />
-          <Button variant="primary" size="md" onclick={() => copy(shareUrl, 'share')}>
+          <Button variant="soft" size="md" onclick={() => copy(shareUrl, 'share')}>
             {copied === 'share' ? 'Copied!' : 'Copy'}
           </Button>
         </div>

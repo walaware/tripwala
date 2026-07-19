@@ -7,6 +7,23 @@
 import { avatarUrl } from './userAvatar.js';
 
 /**
+ * Whether an invite token grants join capability for a trip (#2). The bare
+ * share slug only shows a view-only teaser; the invite link carries the trip's
+ * `invite_token`, and presenting the matching value unlocks the join screen.
+ * Empty/absent tokens never validate (so an unmigrated trip can't be joined by
+ * a blank token).
+ *
+ * @param {{ invite_token?: string } | null | undefined} trip
+ * @param {string | null | undefined} token
+ * @returns {boolean}
+ */
+export function inviteTokenValid(trip, token) {
+  const want = String(trip?.invite_token ?? '').trim();
+  const got = String(token ?? '').trim();
+  return want.length > 0 && got === want;
+}
+
+/**
  * The signed-in user's membership for a trip, or null if they're not a member.
  *
  * @param {import('pocketbase').default} pb superuser client

@@ -9,12 +9,17 @@
    *   trip: { name: string, location?: string, start_date?: string, end_date?: string, descriptionPreview?: string, share_token: string },
    *   mode: 'signin' | 'join' | 'pending',
    *   orphans?: Array<{ id: string, display_name: string }>,
+   *   canJoin?: boolean,
+   *   inviteToken?: string,
    *   form?: any
    * }}
    */
-  let { trip, mode, orphans = [], form = null } = $props();
+  let { trip, mode, orphans = [], canJoin = false, inviteToken = '', form = null } = $props();
 
-  const loginHref = $derived(`/login?next=${encodeURIComponent('/' + trip.share_token)}`);
+  // Preserve the invite token through sign-in so an invited-but-signed-out guest
+  // lands back on the invite link (with join capability), not the view-only page.
+  const nextPath = $derived('/' + trip.share_token + (inviteToken ? `?invite=${inviteToken}` : ''));
+  const loginHref = $derived(`/login?next=${encodeURIComponent(nextPath)}`);
   let joining = $state(false);
   let claiming = $state('');
 </script>
@@ -55,21 +60,30 @@
             <p class="mt-2 font-body text-sm font-bold text-berry-600">{form.withdrawError}</p>
           {/if}
         {:else}
-          <form
-            method="POST"
-            action="?/join"
-            use:enhance={() => {
-              joining = true;
-              return async ({ result }) => {
-                joining = false;
-                if (result.type === 'success') await invalidateAll();
-              };
-            }}
-          >
-            <Button variant="primary" size="lg" full type="submit" disabled={joining}>
-              {joining ? 'Joining…' : 'Join this trip 🙌'}
-            </Button>
-          </form>
+          {#if canJoin}
+            <form
+              method="POST"
+              action="?/join"
+              use:enhance={() => {
+                joining = true;
+                return async ({ result }) => {
+                  joining = false;
+                  if (result.type === 'success') await invalidateAll();
+                };
+              }}
+            >
+              <!-- Carry the invite capability through the POST (the action drops the
+                   URL's `?invite=` query, so re-send it as a field). -->
+              <input type="hidden" name="invite" value={inviteToken} />
+              <Button variant="primary" size="lg" full type="submit" disabled={joining}>
+                {joining ? 'Joining…' : 'Join this trip 🙌'}
+              </Button>
+            </form>
+          {:else}
+            <div class="rounded-xl bg-sun-100 px-4 py-3 font-body text-[13.5px] font-bold leading-relaxed text-cocoa-700">
+              This is a view-only link. To join and see the full details, ask an organizer to send you the trip's <span class="text-coral-600">invite link</span>.
+            </div>
+          {/if}
           {#if form?.joinError}
             <p class="mt-2 font-body text-sm font-bold text-berry-600">{form.joinError}</p>
           {/if}

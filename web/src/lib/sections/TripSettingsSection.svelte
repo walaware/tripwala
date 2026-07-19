@@ -90,7 +90,9 @@
   const hidden = $derived(new Set(trip.hidden_sections ?? []));
   const hiddenList = $derived(showSections ? HIDEABLE.filter(([key]) => hidden.has(key)) : []);
   const ownerUrl = $derived(`${page.url.origin}/${shareToken}/edit?owner=${trip.owner_token}`);
-  const inviteUrl = $derived(`${page.url.origin}/${shareToken}`);
+  // The invite link carries the trip's invite_token (join capability), distinct
+  // from the bare share link which is view-only (#2).
+  const inviteUrl = $derived(`${page.url.origin}/${shareToken}?invite=${trip.invite_token || ''}`);
   // Guests see the invite link only when the organizer allows it; organizers always do.
   const showInvite = $derived(ownerMode || inviteVisibility === 'everyone');
   const notifyOn = $derived(me?.notify !== false);

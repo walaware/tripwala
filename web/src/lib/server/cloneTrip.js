@@ -8,7 +8,7 @@
 // What does NOT: dates, members, RSVPs, gear claims, meal sign-ups, expenses,
 // and any planning-phase votes/ideas. The new trip starts in `planning`.
 
-import { generateOwnerToken } from './tokens.js';
+import { generateOwnerToken, generateInviteToken } from './tokens.js';
 import { generateSlug } from './slug.js';
 
 /**
@@ -30,6 +30,7 @@ export async function cloneTrip(pb, source, user, joinTrip) {
     end_date: '',
     expense_link: source.expense_link || '',
     owner_token: generateOwnerToken(),
+    invite_token: generateInviteToken(),
     created_by: user.id,
     status: 'planning'
   };

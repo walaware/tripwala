@@ -23,6 +23,7 @@
 
   const origin = $derived(page.url.origin);
   const shareUrl = $derived(`${origin}/${data.shareToken}`);
+  const inviteUrl = $derived(`${origin}/${data.shareToken}?invite=${data.inviteToken}`);
   const ownerUrl = $derived(`${origin}/${data.shareToken}/edit?owner=${data.ownerToken}`);
 
   let copied = $state('');
@@ -110,10 +111,22 @@
     <Card class="mt-4">
       <h2 class="font-display text-base font-bold text-cocoa-900">Links</h2>
 
-      <p class="mb-1.5 mt-3 font-display text-sm font-semibold text-cocoa-900">Share link</p>
+      <p class="mb-1.5 mt-3 font-display text-sm font-semibold text-cocoa-900">Invite link</p>
+      <p class="-mt-1 mb-1.5 font-body text-xs font-bold text-cocoa-500">
+        Send this to people you want on the trip — it lets them sign in and join. Keep it to the guest list.
+      </p>
+      <div class="flex gap-2">
+        <input readonly value={inviteUrl} class="{inputClass} flex-1" />
+        <Button variant="primary" size="md" onclick={() => copy(inviteUrl, 'invite')}>{copied === 'invite' ? 'Copied!' : 'Copy'}</Button>
+      </div>
+
+      <p class="mb-1.5 mt-4 font-display text-sm font-semibold text-cocoa-900">Share link (view-only)</p>
+      <p class="-mt-1 mb-1.5 font-body text-xs font-bold text-cocoa-500">
+        A read-only preview — anyone with this sees the trip's teaser but can't join. Safe to post publicly.
+      </p>
       <div class="flex gap-2">
         <input readonly value={shareUrl} class="{inputClass} flex-1" />
-        <Button variant="primary" size="md" onclick={() => copy(shareUrl, 'share')}>{copied === 'share' ? 'Copied!' : 'Copy'}</Button>
+        <Button variant="soft" size="md" onclick={() => copy(shareUrl, 'share')}>{copied === 'share' ? 'Copied!' : 'Copy'}</Button>
       </div>
 
       <p class="mb-1.5 mt-4 font-display text-sm font-semibold text-cocoa-900">Co-organizer link</p>

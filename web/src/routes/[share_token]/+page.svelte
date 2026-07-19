@@ -30,9 +30,16 @@
 </svelte:head>
 
 {#if data.teaser}
-  <TripTeaser trip={data.trip} mode="signin" />
+  <TripTeaser trip={data.trip} mode="signin" inviteToken={data.inviteToken ?? ''} />
 {:else if data.invite}
-  <TripTeaser trip={data.trip} mode="join" orphans={data.orphans ?? []} {form} />
+  <TripTeaser
+    trip={data.trip}
+    mode="join"
+    orphans={data.orphans ?? []}
+    canJoin={data.canJoin ?? false}
+    inviteToken={data.inviteToken ?? ''}
+    {form}
+  />
 {:else if data.awaitingApproval}
   <TripTeaser trip={data.trip} mode="pending" {form} />
 {:else if data.planning}

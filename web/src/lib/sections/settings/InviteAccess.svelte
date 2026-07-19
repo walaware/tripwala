@@ -59,6 +59,9 @@
       : 'Anyone you send this to can join instantly.'}
   </div>
   <CopyField value={inviteUrl} ariaLabel="Invite link" />
+  <div class="mt-1 font-body text-[11.5px] font-bold text-text-muted">
+    This is the invite link (lets people join). The plain trip URL without it is view-only.
+  </div>
 
   {#if emailEnabled}
     <div class="mt-3">

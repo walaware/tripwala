@@ -3,7 +3,7 @@
 // album. Used by both the full New-trip form and the Ideas quick-add, so the two
 // paths can't drift. Idea-stage trips (status='idea') just pass a name.
 
-import { generateOwnerToken } from './tokens.js';
+import { generateOwnerToken, generateInviteToken } from './tokens.js';
 import { generateSlug } from './slug.js';
 import { generateSlotsFromDates } from './mealSlots.js';
 import { joinTrip } from './membership.js';
@@ -70,6 +70,8 @@ export async function createTrip(pb, user, input) {
     description: input.description ? `<p>${escapeHtml(input.description)}</p>` : '',
     expense_link: input.expense_link ?? '',
     owner_token,
+    // Separate join capability from the view-only share slug (#2).
+    invite_token: generateInviteToken(),
     created_by: user.id,
     status,
     trip_type: input.trip_type ?? '',

@@ -76,6 +76,7 @@ export const actions = {
         created: {
           name: result.trip.name,
           share_token: result.share_token,
+          invite_token: result.trip.invite_token || '',
           owner_token: result.owner_token,
           mealSlots: result.mealSlots,
           albumRequested: result.albumRequested,

@@ -1,7 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
 import { loadTripByShareToken } from '$lib/server/loadTrip.js';
-import { getMembership, joinTrip, listOrphans, listPending, listInvites, claimParticipant } from '$lib/server/membership.js';
+import { getMembership, joinTrip, listOrphans, listPending, listInvites, claimParticipant, findInvite, inviteTokenValid } from '$lib/server/membership.js';
 import { isMailConfigured } from '$lib/server/mailer.js';
 import { immichConfigured } from '$lib/server/immich.js';
 import { tripTeaser } from '$lib/server/teaser.js';
@@ -57,16 +57,29 @@ export async function load({ params, locals, url }) {
   // for crawlers (always unauthenticated) and members; rendered in the page head.
   const og = await tripOg(pb, trip, url.origin);
 
-  // Not signed in → public teaser only (name + short description).
+  // Not signed in → public teaser only (name + short description). Carry any
+  // invite token forward so it survives the sign-in round-trip (#2).
   if (!locals.user) {
-    return { teaser: true, trip: tripTeaser(trip), og };
+    return { teaser: true, inviteToken: url.searchParams.get('invite') ?? '', trip: tripTeaser(trip), og };
   }
 
-  // Signed in but not a member → invite screen (one tap to join, or claim an
-  // existing name-only entry so signing in doesn't create a duplicate).
+  // Signed in but not a member → teaser. Joining now requires the invite link
+  // (its `?invite=` carries the trip's invite_token) or a direct invitation
+  // addressed to this account — the bare share link is view-only (#2). When they
+  // can't join yet we still surface any name-only entry they can claim (they were
+  // added by an organizer, so that's an implicit invite).
   const membership = await getMembership(pb, trip.id, locals.user.id);
   if (!membership) {
-    return { invite: true, trip: tripTeaser(trip), orphans: await listOrphans(pb, trip.id), og };
+    const directInvite = await findInvite(pb, trip.id, locals.user.email);
+    const canJoin = inviteTokenValid(trip, url.searchParams.get('invite')) || !!directInvite;
+    return {
+      invite: true,
+      canJoin,
+      inviteToken: url.searchParams.get('invite') ?? '',
+      trip: tripTeaser(trip),
+      orphans: await listOrphans(pb, trip.id),
+      og
+    };
   }
 
   // Joined under an approval-required trip → waiting for an organizer. No trip
@@ -100,6 +113,7 @@ export async function load({ params, locals, url }) {
         name: trip.name,
         share_token: trip.share_token,
         owner_token: trip.owner_token || '',
+        invite_token: trip.invite_token || '',
         location: trip.location || '',
         description: trip.description || '',
         emergency_info: trip.emergency_info || '',
@@ -148,14 +162,22 @@ export async function load({ params, locals, url }) {
 }
 
 export const actions = {
-  // Become a member of this trip. Requires being signed in; the invite link is
-  // the capability to join.
-  join: async ({ params, locals }) => {
+  // Become a member of this trip. Requires being signed in AND a valid invite
+  // capability: the invite token (carried in the join form / URL `?invite=`) or
+  // a direct invitation addressed to this account. The bare share link alone is
+  // view-only, so we re-check the capability server-side — not just in the UI.
+  join: async ({ params, locals, request, url }) => {
     if (!locals.user) {
       throw redirect(303, `/login?next=${encodeURIComponent('/' + params.share_token)}`);
     }
     const pb = await superuserPb();
     const trip = await fetchTrip(pb, params.share_token);
+    const fd = await request.formData();
+    const token = String(fd.get('invite') ?? '') || url.searchParams.get('invite') || '';
+    const directInvite = await findInvite(pb, trip.id, locals.user.email);
+    if (!inviteTokenValid(trip, token) && !directInvite) {
+      return fail(403, { joinError: 'You need an invite link to join this trip. Ask an organizer to send you one.' });
+    }
     try {
       const m = await joinTrip(pb, trip, locals.user);
       // Approval-required trips return a pending membership; the page reloads

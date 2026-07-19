@@ -85,6 +85,7 @@ export async function load({ params, locals }) {
   return {
     shareToken: trip.share_token,
     ownerToken: trip.owner_token,
+    inviteToken: trip.invite_token || '',
     status: trip.status || 'confirmed',
     values: {
       name: trip.name || '',
