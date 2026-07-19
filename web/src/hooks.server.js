@@ -49,6 +49,7 @@ const handleAuth = async ({ event, resolve }) => {
         nickname: rec.nickname ?? '',
         show_last_name: rec.show_last_name === true,
         temp_unit: rec.temp_unit ?? '',
+        map_app: rec.map_app ?? '',
         default_trip_visibility: rec.default_trip_visibility ?? ''
       }
     : null;
