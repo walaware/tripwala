@@ -5,6 +5,7 @@ import { avatarUrl } from './userAvatar.js';
 import { locationImageUrl } from './locationMedia.js';
 import { participantName } from '../displayName.js';
 import { shapeItinerary } from './itinerary.js';
+import { shapeCities } from './cities.js';
 
 /**
  * Load a trip and all of its related sections by share token.
@@ -35,7 +36,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
 
   const tripFilter = pb.filter('trip = {:id}', { id: trip.id });
 
-  const [participantsAll, gearItems, gearClaims, mealSlots, mealSignups, packingItems, expenseRows, itineraryRows, itineraryVotes, mapPinRows] =
+  const [participantsAll, gearItems, gearClaims, mealSlots, mealSignups, packingItems, expenseRows, itineraryRows, itineraryVotes, mapPinRows, cityRows] =
     await Promise.all([
       pb.collection('participants').getFullList({ filter: tripFilter, sort: 'created', expand: 'user' }),
       pb.collection('gear_items').getFullList({ filter: tripFilter, sort: 'created' }),
@@ -52,7 +53,9 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       // item-level votes are newer than some deployments' data; tolerate absence.
       pb.collection('itinerary_votes').getFullList({ filter: pb.filter('itinerary_item.trip = {:id}', { id: trip.id }) }).catch(() => []),
       // map_pins is newer than some deployments' data; tolerate its absence.
-      pb.collection('map_pins').getFullList({ filter: tripFilter, sort: 'created' }).catch(() => [])
+      pb.collection('map_pins').getFullList({ filter: tripFilter, sort: 'created' }).catch(() => []),
+      // trip_cities (#3) is newer than some deployments' data; tolerate absence.
+      pb.collection('trip_cities').getFullList({ filter: tripFilter }).catch(() => [])
     ]);
 
   // Pending link-join requests aren't members yet — keep them out of every
@@ -131,6 +134,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
   // Itinerary → day-by-day items: fixed schedule entries + flexible suggestions
   // the crew upvotes (the viewer's own vote flagged via `mine`).
   const itineraryItems = shapeItinerary(itineraryRows, itineraryVotes, nameById, avatarById, currentParticipantId);
+  const cities = shapeCities(cityRows);
 
   // The picked location idea (if any) carries its image + link preview into the
   // confirmed trip, for the expanded location card. Custom image wins over the
@@ -207,6 +211,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
     expenses,
     settlement,
     itineraryItems,
+    cities,
     mapPins: mapPinRows.map((p) => ({
       id: p.id,
       label: p.label,

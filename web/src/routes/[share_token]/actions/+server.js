@@ -407,6 +407,61 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
+      // ---- Cities (dated trip segments, organizer only) ----
+
+      // Add a city segment. `name` is required; `start_date`/`end_date` are
+      // optional YYYY-MM-DD (the itinerary groups days under the city whose
+      // range contains them).
+      case 'city_add': {
+        if (!isOrganizer) throw error(403, 'Only organizers can edit cities');
+        const name = String(body.name ?? '').trim().slice(0, 120);
+        if (!name) throw error(400, 'Name the city');
+        const start = String(body.start_date ?? '').slice(0, 10);
+        const end = String(body.end_date ?? '').slice(0, 10);
+        const bad = (/** @type {string} */ d) => d && !/^\d{4}-\d{2}-\d{2}$/.test(d);
+        if (bad(start) || bad(end)) throw error(400, 'Bad date');
+        if (start && end && end < start) throw error(400, 'End date is before the start date');
+        const count = (
+          await pb.collection('trip_cities').getList(1, 1, { filter: pb.filter('trip = {:t}', { t: trip.id }) })
+        ).totalItems;
+        await pb.collection('trip_cities').create({
+          trip: trip.id,
+          name,
+          start_date: start ? `${start} 00:00:00.000Z` : '',
+          end_date: end ? `${end} 00:00:00.000Z` : '',
+          sort_order: count
+        });
+        break;
+      }
+
+      // Edit a city's name / dates (organizer only).
+      case 'city_update': {
+        if (!isOrganizer) throw error(403, 'Only organizers can edit cities');
+        const city = await inTrip('trip_cities', String(body.cityId ?? ''));
+        const name = String(body.name ?? '').trim().slice(0, 120);
+        if (!name) throw error(400, 'Name the city');
+        const start = String(body.start_date ?? '').slice(0, 10);
+        const end = String(body.end_date ?? '').slice(0, 10);
+        const bad = (/** @type {string} */ d) => d && !/^\d{4}-\d{2}-\d{2}$/.test(d);
+        if (bad(start) || bad(end)) throw error(400, 'Bad date');
+        if (start && end && end < start) throw error(400, 'End date is before the start date');
+        await pb.collection('trip_cities').update(city.id, {
+          name,
+          start_date: start ? `${start} 00:00:00.000Z` : '',
+          end_date: end ? `${end} 00:00:00.000Z` : ''
+        });
+        break;
+      }
+
+      // Remove a city segment (organizer only). Itinerary items are unaffected —
+      // their city was only ever derived from dates.
+      case 'city_remove': {
+        if (!isOrganizer) throw error(403, 'Only organizers can edit cities');
+        const city = await inTrip('trip_cities', String(body.cityId ?? ''));
+        await pb.collection('trip_cities').delete(city.id);
+        break;
+      }
+
       // Toggle my own trip-notification preference.
       case 'notify_toggle': {
         await pb.collection('participants').update(me.id, { notify: me.notify === false });
