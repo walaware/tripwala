@@ -23,6 +23,7 @@
   import TripHeader from '$lib/sections/TripHeader.svelte';
   import StatStrip from '$lib/sections/StatStrip.svelte';
   import MobileHub from '$lib/sections/MobileHub.svelte';
+  import OverviewBrief from '$lib/sections/OverviewBrief.svelte';
   import RailModule from '$lib/sections/RailModule.svelte';
   import CrewSummary from '$lib/sections/summary/CrewSummary.svelte';
   import BookingsSummary from '$lib/sections/summary/BookingsSummary.svelte';
@@ -305,6 +306,7 @@
     {#if hasSafety}
       <SafetySection info={trip.emergency_info} />
     {/if}
+    {#if !isPast}<OverviewBrief {trip} />{/if}
     <MobileHub rows={mobileRows} onOpen={setFocus} onSettings={goSettings} />
     {#if !currentParticipantId}
       <p class="px-1 text-center font-body text-xs font-bold text-cocoa-500">
@@ -338,6 +340,7 @@
       <!-- Main column: the itinerary (Phase 3 replaces this with the dense
            city-grouped version). -->
       <div class="dash-main">
+        {#if !isPast}<div class="mb-[var(--stack-gap,14px)]"><OverviewBrief {trip} /></div>{/if}
         {#if !isHidden('itinerary')}
           <section id="itinerary" class="anchor">
             <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} />
