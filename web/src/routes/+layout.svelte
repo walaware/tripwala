@@ -199,7 +199,7 @@
     title={tripTitle}
     subtitle={tripSubtitle}
     icon={tripIcon}
-    scrollSpy={inTrip}
+    scrollSpy={inTrip && (shell.trip?.scrollSpy ?? true)}
     maxWidth={inTrip ? 1180 : undefined}
     {breakpoint}
   >

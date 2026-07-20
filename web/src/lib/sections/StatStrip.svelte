@@ -17,7 +17,9 @@
 
   const going = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'going').length);
   const maybe = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'maybe').length);
-  const decisions = $derived(itineraryItems.filter((/** @type {any} */ i) => i.kind === 'flexible').length);
+  // Open decisions = the undated "to decide" suggestions (matches the itinerary's
+  // top decisions block).
+  const decisions = $derived(itineraryItems.filter((/** @type {any} */ i) => !i.date).length);
 
   // Live countdown (UTC-day granularity), ticking each minute so it rolls over.
   let now = $state(Date.now());

@@ -22,6 +22,7 @@
   // Dashboard chrome + compact rail summaries.
   import TripHeader from '$lib/sections/TripHeader.svelte';
   import StatStrip from '$lib/sections/StatStrip.svelte';
+  import MobileHub from '$lib/sections/MobileHub.svelte';
   import RailModule from '$lib/sections/RailModule.svelte';
   import CrewSummary from '$lib/sections/summary/CrewSummary.svelte';
   import BookingsSummary from '$lib/sections/summary/BookingsSummary.svelte';
@@ -85,6 +86,37 @@
   const hasSafety = $derived(!!(trip.emergency_info || '').trim());
   const hasPhotos = $derived(!!(trip.immich_album_url || '').trim());
 
+  // Live status lines for the mobile hub rows (one per module).
+  const bookings = $derived(data.bookings ?? []);
+  const money = (/** @type {number} */ n) => `$${Math.abs(n).toFixed(2).replace(/\.00$/, '')}`;
+  const youNet = $derived(
+    (data.settlement?.net ?? []).find((/** @type {any} */ n) => n.id === currentParticipantId)?.net ?? 0
+  );
+  const plannedDays = $derived(new Set(itineraryItems.filter((/** @type {any} */ i) => i.date).map((/** @type {any} */ i) => i.date)).size);
+  const decisions = $derived(itineraryItems.filter((/** @type {any} */ i) => !i.date).length);
+  const statuses = $derived.by(() => {
+    const onHold = bookings.filter((/** @type {any} */ b) => b.status === 'planning').length;
+    const pins = (data.mapPins ?? []).length;
+    const cityCount = (data.cities ?? []).length;
+    const pk = data.packing ?? [];
+    const pkDone = pk.filter((/** @type {any} */ p) => p.checked || p.participant).length;
+    const gDone = gear.filter((/** @type {any} */ g) => g.remaining === 0).length;
+    const mDone = meals.filter((/** @type {any} */ m) => m.ownerParticipant).length;
+    return {
+      itinerary: plannedDays ? `${plannedDays} day${plannedDays === 1 ? '' : 's'} planned${decisions ? ` · ${decisions} to decide` : ''}` : 'Nothing planned yet',
+      crew: going || maybe ? `${going} going${maybe ? ` · ${maybe} maybe` : ''}` : 'No RSVPs yet',
+      bookings: bookings.length ? `${bookings.length} booking${bookings.length === 1 ? '' : 's'}${onHold ? ` · ${onHold} on hold` : ''}` : 'Nothing booked yet',
+      map: pins ? `${pins} pin${pins === 1 ? '' : 's'}${cityCount ? ` across ${cityCount} cit${cityCount === 1 ? 'y' : 'ies'}` : ''}` : 'No pins yet',
+      packing: pk.length ? `${pkDone} of ${pk.length} packed` : 'Nothing to pack yet',
+      gear: gear.length ? `${gDone} of ${gear.length} covered` : 'No shared gear yet',
+      food: meals.length ? `${mDone} of ${meals.length} cooks` : 'No meals planned yet',
+      expenses: (data.expenses ?? []).length
+        ? (youNet > 0.005 ? `You're owed ${money(youNet)}` : youNet < -0.005 ? `You owe ${money(youNet)}` : 'All settled up')
+        : 'No expenses yet',
+      photos: 'Shared album'
+    };
+  });
+
   // The rail modules (compact summaries on desktop; status rows on mobile). The
   // house-question titles are the redesign's voice. Itinerary is the main column,
   // not a rail card. Order mirrors the mockup, then the superset extras.
@@ -106,6 +138,15 @@
       ...(hasPhotos && isHidden('photos') ? [{ emoji: '📷', nav: 'Photos' }] : [])
     ]
   );
+
+  // Mobile hub rows — itinerary, the visible rail modules, then photos. Each
+  // carries a live status line; itinerary/expenses run "hot" when they need
+  // attention.
+  const mobileRows = $derived([
+    ...(!isHidden('itinerary') ? [{ key: 'itinerary', emoji: '🗓️', title: "What's the plan?", status: statuses.itinerary, hot: decisions > 0 }] : []),
+    ...visibleRail.map((r) => ({ key: r.key, emoji: r.emoji, title: r.title, status: /** @type {any} */ (statuses)[r.key] ?? '', hot: r.key === 'expenses' && youNet > 0.005 })),
+    ...(hasPhotos && !isHidden('photos') ? [{ key: 'photos', emoji: '📷', title: 'Shared photos', status: statuses.photos, hot: false }] : [])
+  ]);
 
   // Section nav published to the shell (scrollSpy anchors). Hidden sections drop
   // out of the nav too.
@@ -137,7 +178,22 @@
   const settingsHref = $derived(`${page.url.pathname.replace(/\/$/, '')}/settings`);
   const goSettings = () => goto(settingsHref);
 
+  // Desktop = ≥920px (matches the shell breakpoint). Drives the hub-&-spoke swap
+  // and gates scrollSpy off on mobile.
+  let isMobile = $state(false);
+  onMount(() => {
+    const mq = window.matchMedia('(max-width: 919px)');
+    const update = () => (isMobile = mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  });
+
   function goDecide() {
+    if (isMobile) {
+      setFocus('itinerary');
+      return;
+    }
     const el = typeof document !== 'undefined' ? document.getElementById('itinerary') : null;
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     else setFocus('itinerary');
@@ -168,7 +224,9 @@
   // (contextual mode). Cleared on unmount.
   const shell = useShell();
   $effect(() => {
-    shell.trip = { title: trip.name, subtitle: meta, emoji, nav: visibleNav };
+    // scrollSpy only makes sense on the desktop dashboard (in-page section
+    // anchors) — off on mobile hub-&-spoke and in a focused module view.
+    shell.trip = { title: trip.name, subtitle: meta, emoji, nav: visibleNav, scrollSpy: !isMobile && !focus };
   });
   $effect(() => () => {
     shell.trip = null;
@@ -211,7 +269,7 @@
   <!-- Focused module (spoke) — the full section alone, reached from a rail
        summary / the ＋Add menu / a mobile status row. -->
   <div class="trip-stack">
-    <button type="button" class="self-start font-body text-[13.5px] font-extrabold text-coral-600 hover:underline" onclick={clearFocus}>← Back to dashboard</button>
+    <button type="button" class="self-start font-body text-[13.5px] font-extrabold text-coral-600 hover:underline" onclick={clearFocus}>{isMobile ? '← Trip home' : '← Back to dashboard'}</button>
     {#if focus === 'itinerary'}
       <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={null} />
     {:else if focus === 'bookings'}
@@ -230,6 +288,28 @@
       <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} />
     {:else if focus === 'photos'}
       <ImmichSection url={trip.immich_album_url} onHide={null} />
+    {/if}
+  </div>
+{:else if isMobile}
+  <!-- Mobile hub & spoke: trip home is a status list; a tap opens a module. -->
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} />
+
+  {#if top}{@render top()}{/if}
+
+  <div class="trip-stack">
+    {#if isPast}
+      <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} />
+    {:else}
+      <StatStrip {trip} {participants} {itineraryItems} onDecide={goDecide} />
+    {/if}
+    {#if hasSafety}
+      <SafetySection info={trip.emergency_info} />
+    {/if}
+    <MobileHub rows={mobileRows} onOpen={setFocus} onSettings={goSettings} />
+    {#if !currentParticipantId}
+      <p class="px-1 text-center font-body text-xs font-bold text-cocoa-500">
+        Claim a name above to RSVP, grab gear, and sign up for food.
+      </p>
     {/if}
   </div>
 {:else}
