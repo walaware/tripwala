@@ -1,79 +1,52 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
-import { getMembership } from '$lib/server/membership.js';
+import {
+  getMembership,
+  listPending,
+  listInvites,
+  joinTrip
+} from '$lib/server/membership.js';
+import { isMailConfigured } from '$lib/server/mailer.js';
+import { immichConfigured } from '$lib/server/immich.js';
+import { cloneTrip } from '$lib/server/cloneTrip.js';
 
-// Organizer-only "Trip settings": edit trip details, copy the share +
-// co-organizer links, and manage members. Gated to a signed-in organizer
-// member (distinct from the /edit?owner= claim link, which is how someone
-// *becomes* an organizer in the first place).
-
-const MAX = { name: 200, location: 300, description: 5000 };
-
-/** @param {string} v */
-const clean = (v) => v.trim();
-/** PocketBase date → yyyy-mm-dd for <input type=date>. @param {string} d */
-const fromPb = (d) => (d || '').slice(0, 10);
-/** yyyy-mm-dd → PocketBase datetime. @param {string} d */
-const toPb = (d) => (d ? `${d} 00:00:00.000Z` : '');
-
-/** Stored description is `<p>…</p>` with <br>; turn it back into plain text. @param {string} html */
-function descToText(html) {
-  return (html || '')
-    .replace(/^<p>/i, '')
-    .replace(/<\/p>$/i, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
-}
-/** Plain text → safe stored HTML. @param {string} s */
-function textToHtml(s) {
-  const esc = s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>');
-  return esc ? `<p>${esc}</p>` : '';
-}
+// Trip settings — one home. Reached from the sidebar ⚙ (desktop), the mobile
+// trip-home row, or any module's ⋯ menu. Any signed-in member can open it
+// (guests get Notifications / Leave / Clone and, if allowed, the invite link);
+// organizer-only groups (access toggles, people & roles, trip details, photos,
+// stage) are gated on `isOrganizer`. All mutations go through the shared
+// /[share_token]/actions endpoint (tripAction) except Clone, which creates a new
+// trip and redirects, so it stays a form action here.
 
 /**
- * Resolve a trip + require the signed-in user to be an organizer of it.
+ * @param {any} pb superuser client
  * @param {string} shareToken
- * @param {{ id: string } | null | undefined} user
  */
-async function requireOrganizer(shareToken, user) {
-  const pb = await superuserPb();
-  let trip;
+async function fetchTrip(pb, shareToken) {
   try {
-    trip = await pb
+    return await pb
       .collection('trips')
       .getFirstListItem(pb.filter('share_token = {:t}', { t: shareToken }));
   } catch (/** @type {any} */ err) {
     if (err?.status === 404) throw error(404, 'Trip not found');
     throw error(502, 'Could not reach the trip backend');
   }
-  if (!user) {
-    throw redirect(303, `/login?next=${encodeURIComponent(`/${shareToken}/settings`)}`);
-  }
-  const membership = await getMembership(pb, trip.id, user.id);
-  if (!membership || membership.role !== 'organizer') {
-    throw error(403, 'Only organizers can change trip settings.');
-  }
-  return { pb, trip, membership };
 }
 
-/** @param {any} pb @param {string} tripId @param {string} meId */
-async function listMembers(pb, tripId, meId) {
+/**
+ * Members = participants linked to an account, organizers first.
+ * @param {any} pb @param {string} tripId
+ */
+async function listMembers(pb, tripId) {
   const all = await pb
     .collection('participants')
     .getFullList({ filter: pb.filter('trip = {:t}', { t: tripId }), sort: 'display_name' });
   return all
-    .filter((/** @type {any} */ p) => p.user) // members = participants linked to an account
+    .filter((/** @type {any} */ p) => p.user)
     .map((/** @type {any} */ p) => ({
       id: p.id,
       display_name: p.display_name,
-      role: p.role || 'guest',
-      isYou: p.id === meId
+      role: p.role || 'guest'
     }))
     .sort((/** @type {any} */ a, /** @type {any} */ b) =>
       a.role === b.role ? 0 : a.role === 'organizer' ? -1 : 1
@@ -81,116 +54,76 @@ async function listMembers(pb, tripId, meId) {
 }
 
 export async function load({ params, locals }) {
-  const { pb, trip, membership } = await requireOrganizer(params.share_token, locals.user);
+  const pb = await superuserPb();
+  const trip = await fetchTrip(pb, params.share_token);
+
+  if (!locals.user) {
+    throw redirect(303, `/login?next=${encodeURIComponent(`/${params.share_token}/settings`)}`);
+  }
+
+  const membership = await getMembership(pb, trip.id, locals.user.id);
+  // Not a member yet (or still awaiting approval) → settings has nothing for
+  // them; send them to the trip page, which shows the teaser / join / pending
+  // state as appropriate.
+  if (!membership || membership.status === 'pending') {
+    throw redirect(303, `/${params.share_token}`);
+  }
+
+  const isOrganizer = membership.role === 'organizer';
+
   return {
     shareToken: trip.share_token,
-    ownerToken: trip.owner_token,
-    inviteToken: trip.invite_token || '',
-    status: trip.status || 'confirmed',
-    values: {
+    currentParticipantId: membership.id,
+    isOrganizer,
+    me: { name: membership.display_name, notify: membership.notify !== false },
+    trip: {
+      id: trip.id,
       name: trip.name || '',
+      share_token: trip.share_token,
+      owner_token: trip.owner_token || '',
+      invite_token: trip.invite_token || '',
       trip_type: trip.trip_type || '',
       location: trip.location || '',
-      start_date: fromPb(trip.start_date),
-      end_date: fromPb(trip.end_date),
-      description: descToText(trip.description),
-      expense_link: trip.expense_link || ''
+      description: trip.description || '',
+      emergency_info: trip.emergency_info || '',
+      start_date: trip.start_date || '',
+      end_date: trip.end_date || '',
+      expense_link: trip.expense_link || '',
+      min_nights: trip.min_nights || 0,
+      status: trip.status || 'confirmed',
+      hidden_sections: trip.hidden_sections ?? [],
+      join_policy: trip.join_policy || 'instant',
+      invite_visibility: trip.invite_visibility || 'everyone',
+      visibility: trip.visibility || 'private',
+      immich_album_url: trip.immich_album_url || '',
+      immich_album_linked: trip.immich_album_linked || false
     },
-    members: await listMembers(pb, trip.id, membership.id)
+    members: await listMembers(pb, trip.id),
+    pending: isOrganizer ? await listPending(pb, trip.id) : [],
+    invites: isOrganizer ? await listInvites(pb, trip.id) : [],
+    emailEnabled: isMailConfigured(),
+    immichEnabled: await immichConfigured()
   };
 }
 
 export const actions = {
-  // Edit the trip's core details.
-  update: async ({ request, params, locals }) => {
-    const { pb, trip } = await requireOrganizer(params.share_token, locals.user);
-    const form = await request.formData();
-    const name = clean(String(form.get('name') ?? ''));
-    const trip_type = clean(String(form.get('trip_type') ?? ''));
-    const location = clean(String(form.get('location') ?? ''));
-    const start_date = clean(String(form.get('start_date') ?? ''));
-    const end_date = clean(String(form.get('end_date') ?? ''));
-    const description = clean(String(form.get('description') ?? ''));
-    const expense_link = clean(String(form.get('expense_link') ?? ''));
-
-    /** @type {Record<string,string>} */
-    const errors = {};
-    const values = { name, trip_type, location, start_date, end_date, description, expense_link };
-    if (!name) errors.name = 'Give your trip a name.';
-    else if (name.length > MAX.name) errors.name = `Keep it under ${MAX.name} characters.`;
-    if (location.length > MAX.location) errors.location = `Keep it under ${MAX.location} characters.`;
-    if (description.length > MAX.description) errors.description = 'That description is too long.';
-    if (start_date && end_date && end_date < start_date) {
-      errors.end_date = 'End date cannot be before the start date.';
+  // Clone this trip's scaffolding into a fresh planning-stage trip you own, then
+  // land on it. Any member may clone. Mirrors the trip route's clone action
+  // (kept here so the settings "Make a copy" button can redirect on success).
+  clone: async ({ params, locals }) => {
+    if (!locals.user) {
+      throw redirect(303, `/login?next=${encodeURIComponent(`/${params.share_token}/settings`)}`);
     }
-    if (expense_link && !/^https?:\/\/.+/i.test(expense_link)) {
-      errors.expense_link = 'Enter a full URL starting with http(s)://';
-    }
-    if (Object.keys(errors).length) return fail(400, { errors, values });
-
+    const pb = await superuserPb();
+    const trip = await fetchTrip(pb, params.share_token);
+    const me = await getMembership(pb, trip.id, locals.user.id);
+    if (!me || me.status === 'pending') return fail(403, { cloneError: 'Join this trip before cloning it.' });
+    let token;
     try {
-      await pb.collection('trips').update(trip.id, {
-        name,
-        trip_type,
-        location,
-        start_date: toPb(start_date),
-        end_date: toPb(end_date),
-        description: textToHtml(description),
-        expense_link
-      });
-    } catch (_) {
-      return fail(502, { errors: { _form: 'Could not save — please try again.' }, values });
+      token = await cloneTrip(pb, trip, locals.user, joinTrip);
+    } catch (/** @type {any} */ e) {
+      return fail(502, { cloneError: 'Could not clone the trip — please try again.' });
     }
-    return { saved: true };
-  },
-
-  // Promote a guest to organizer or demote an organizer to guest.
-  setRole: async ({ request, params, locals }) => {
-    const { pb, trip } = await requireOrganizer(params.share_token, locals.user);
-    const form = await request.formData();
-    const participantId = String(form.get('participantId') ?? '');
-    const role = String(form.get('role') ?? '');
-    if (!participantId || !['organizer', 'guest'].includes(role)) {
-      return fail(400, { memberError: 'Invalid request.' });
-    }
-    const target = await pb.collection('participants').getOne(participantId).catch(() => null);
-    if (!target || target.trip !== trip.id) return fail(400, { memberError: 'Not part of this trip.' });
-
-    // Never leave a trip with zero organizers.
-    if (role === 'guest' && target.role === 'organizer') {
-      const orgs = await pb
-        .collection('participants')
-        .getFullList({ filter: pb.filter('trip = {:t} && role = "organizer"', { t: trip.id }) });
-      if (orgs.length <= 1) return fail(400, { memberError: 'A trip needs at least one organizer.' });
-    }
-    await pb.collection('participants').update(participantId, { role });
-    return { memberSaved: true };
-  },
-
-  // Remove a member and their contributions (gear claims, meal sign-ups, packing).
-  removeMember: async ({ request, params, locals }) => {
-    const { pb, trip } = await requireOrganizer(params.share_token, locals.user);
-    const form = await request.formData();
-    const participantId = String(form.get('participantId') ?? '');
-    if (!participantId) return fail(400, { memberError: 'Invalid request.' });
-    const target = await pb.collection('participants').getOne(participantId).catch(() => null);
-    if (!target || target.trip !== trip.id) return fail(400, { memberError: 'Not part of this trip.' });
-
-    if (target.role === 'organizer') {
-      const orgs = await pb
-        .collection('participants')
-        .getFullList({ filter: pb.filter('trip = {:t} && role = "organizer"', { t: trip.id }) });
-      if (orgs.length <= 1) return fail(400, { memberError: 'Demote them first — a trip needs an organizer.' });
-    }
-
-    for (const coll of ['gear_claims', 'meal_signups', 'packing_items']) {
-      const rows = await pb
-        .collection(coll)
-        .getFullList({ filter: pb.filter('participant = {:p}', { p: participantId }) })
-        .catch(() => []);
-      for (const r of rows) await pb.collection(coll).delete(r.id).catch(() => {});
-    }
-    await pb.collection('participants').delete(participantId).catch(() => {});
-    return { memberRemoved: true };
+    throw redirect(303, `/${token}`);
   }
 };
