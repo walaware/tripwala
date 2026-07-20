@@ -19,6 +19,7 @@
    *   currentParticipantId?: string | null,
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null
    * }}
@@ -30,6 +31,7 @@
     currentParticipantId = null,
     ownerMode = false,
     onHide = null,
+    onSettings = null,
     collapsed = false,
     onToggle = null
   } = $props();
@@ -269,7 +271,7 @@
     'w-full rounded-md border-2 border-sand-300 bg-white px-3 py-2.5 font-body text-[14.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400';
 </script>
 
-<SectionHeader emoji="🗺️" title="Map" subtitle="— pins & places" {onHide} {collapsed} {onToggle} />
+<SectionHeader emoji="🗺️" title="Map" subtitle="— pins & places" {onHide} {onSettings} {collapsed} {onToggle} />
 <Card>
   <!-- Search a place -->
   <div class="flex gap-2">

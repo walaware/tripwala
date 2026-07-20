@@ -4,6 +4,9 @@
   import { page } from '$app/state';
   import { Card, Button, Switch } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
+  import { useShell } from '$lib/shell.svelte.js';
+  import { tripSectionNav } from '$lib/tripSections.js';
+  import { tripEmoji } from '$lib/format.js';
   import SettingRow from '$lib/sections/settings/SettingRow.svelte';
   import InviteAccess from '$lib/sections/settings/InviteAccess.svelte';
   import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
@@ -23,6 +26,25 @@
   const ownerUrl = $derived(`${origin}/${shareToken}/edit?owner=${trip.owner_token || ''}`);
   const showInvite = $derived(ownerMode || trip.invite_visibility === 'everyone');
   const notifyOn = $derived(me?.notify !== false);
+
+  // Keep the AppShell in the trip's CONTEXTUAL mode while on Trip settings —
+  // entering settings shouldn't dump the user back to the app-level global nav.
+  // back → the trip; nav = the trip's section nav (absolute links into the trip
+  // route + section, since settings is its own route); scrollSpy off.
+  const shell = useShell();
+  $effect(() => {
+    shell.trip = {
+      title: '⚙️ Trip settings',
+      subtitle: trip.name,
+      emoji: tripEmoji(trip.trip_type),
+      nav: tripSectionNav(trip, `/${shareToken}`),
+      scrollSpy: false,
+      back: { label: trip.name, onClick: () => goto(`/${shareToken}`) }
+    };
+  });
+  $effect(() => () => {
+    shell.trip = null;
+  });
 
   // Every hideable module on the trip page (Overview + Trip settings are never
   // hideable; Photos only appears once an album is linked). The 🧩 Sections

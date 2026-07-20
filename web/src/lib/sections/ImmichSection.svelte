@@ -13,13 +13,15 @@
    *   url: string,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null,
-   *   onHide?: (() => void) | null
+   *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null
    * }}
    */
-  let { url, collapsed = false, onToggle = null, onHide = null } = $props();
+  let { url, collapsed = false, onToggle = null, onHide = null,
+    onSettings = null } = $props();
 </script>
 
-<SectionHeader emoji="📷" title="Photos" subtitle="— shared album" {collapsed} {onToggle} {onHide} />
+<SectionHeader emoji="📷" title="Photos" subtitle="— shared album" {collapsed} {onToggle} {onHide} {onSettings} />
 <Card>
   <div class="overflow-hidden rounded-2xl border-2 border-sand-300 bg-sand-100">
     <iframe

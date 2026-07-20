@@ -7,7 +7,7 @@ const KEY = Symbol('wala-shell');
  * the layout's AppShell: the section nav + the record's title. When it's `null`
  * the shell stays at app level (global destinations).
  *
- * @typedef {{ title: string, subtitle?: string, emoji?: string, nav: import('@walaware/design').NavItem[], scrollSpy?: boolean }} TripContext
+ * @typedef {{ title: string, subtitle?: string, emoji?: string, nav: import('@walaware/design').NavItem[], scrollSpy?: boolean, back?: { label: string, onClick: () => void } }} TripContext
  * @typedef {{ trip: TripContext | null }} Shell
  *
  * The layout passes `title`/`subtitle`/`emoji` to the AppShell, which (v0.5.0+)

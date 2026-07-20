@@ -15,6 +15,7 @@
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null,
    *   isPast?: boolean,
@@ -22,7 +23,8 @@
    *   inviteVisibility?: string
    * }}
    */
-  let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null, collapsed = false, onToggle = null, isPast = false, invitableFriends = [], inviteVisibility = 'everyone' } = $props();
+  let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null,
+    onSettings = null, collapsed = false, onToggle = null, isPast = false, invitableFriends = [], inviteVisibility = 'everyone' } = $props();
 
   // Invite from friends: allowed for everyone unless the trip restricts invites
   // to organizers. Once invited (this session) a friend drops from the picker on
@@ -142,7 +144,7 @@
   }
 </script>
 
-<SectionHeader emoji="🙌" title={isPast ? 'Who went' : "Who's in"} {onHide} {collapsed} {onToggle}>
+<SectionHeader emoji="🙌" title={isPast ? 'Who went' : "Who's in"} {onHide} {onSettings} {collapsed} {onToggle}>
   {#snippet action()}
     <Chip tone="leaf">{going} {isPast ? 'went' : 'going'}</Chip>
     {#if maybe > 0 && !isPast}<Chip tone="sun">{maybe} maybe</Chip>{/if}

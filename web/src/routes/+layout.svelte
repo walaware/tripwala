@@ -150,7 +150,10 @@
   // Contextual mode swaps the global destinations for the open trip's section
   // nav (in-page anchors, driven by scrollSpy) and adds a "← All trips" exit.
   const nav = $derived(shell.trip ? shell.trip.nav : appNav);
-  const back = $derived(inTrip ? { label: 'All trips', onClick: () => goto('/') } : null);
+  // A contextual screen can override the exit target (e.g. Trip settings points
+  // "back" at its trip, not the global trips list); otherwise a trip exits to
+  // "All trips".
+  const back = $derived(shell.trip?.back ?? (inTrip ? { label: 'All trips', onClick: () => goto('/') } : null));
   // Contextual top-bar identity. The kit (v0.5.0) collapses the trip page's
   // `[data-appshell-sticky]` header into the top bar on mobile, crossfading the
   // brand → this icon + title + subtitle. We just hand it the values; the shell

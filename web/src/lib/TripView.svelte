@@ -24,6 +24,7 @@
   import StatStrip from '$lib/sections/StatStrip.svelte';
   import MobileHub from '$lib/sections/MobileHub.svelte';
   import OverviewBrief from '$lib/sections/OverviewBrief.svelte';
+  import { RAIL_MODULES } from '$lib/tripSections.js';
   import RailModule from '$lib/sections/RailModule.svelte';
   import CrewSummary from '$lib/sections/summary/CrewSummary.svelte';
   import BookingsSummary from '$lib/sections/summary/BookingsSummary.svelte';
@@ -118,24 +119,14 @@
     };
   });
 
-  // The rail modules (compact summaries on desktop; status rows on mobile). The
-  // house-question titles are the redesign's voice. Itinerary is the main column,
-  // not a rail card. Order mirrors the mockup, then the superset extras.
-  const RAIL = [
-    { key: 'crew', emoji: '🙌', title: "Who's coming?", nav: 'Members' },
-    { key: 'bookings', emoji: '🎫', title: "What's booked?", nav: 'Bookings' },
-    { key: 'map', emoji: '🗺️', title: 'Pins & places', nav: 'Map' },
-    { key: 'packing', emoji: '🧳', title: 'Packing list', nav: 'Packing' },
-    { key: 'gear', emoji: '🎒', title: "Who's bringing what?", nav: 'Gear' },
-    { key: 'food', emoji: '🍳', title: "Who's cooking?", nav: 'Food' },
-    { key: 'expenses', emoji: '💸', title: 'Who paid what?', nav: 'Expenses' }
-  ];
-  const visibleRail = $derived(RAIL.filter((r) => !hidden.has(r.key)));
+  // The rail modules (compact summaries on desktop; status rows on mobile) — the
+  // shared registry, so the Trip settings screen's section nav stays in sync.
+  const visibleRail = $derived(RAIL_MODULES.filter((r) => !hidden.has(r.key)));
   // Modules turned off for this trip → one dashed "not on this trip" row.
   const offModules = $derived(
     [
       ...(isHidden('itinerary') ? [{ emoji: '🗓️', nav: 'Itinerary' }] : []),
-      ...RAIL.filter((r) => hidden.has(r.key)),
+      ...RAIL_MODULES.filter((r) => hidden.has(r.key)),
       ...(hasPhotos && isHidden('photos') ? [{ emoji: '📷', nav: 'Photos' }] : [])
     ]
   );
@@ -272,23 +263,23 @@
   <div class="trip-stack">
     <button type="button" class="self-start font-body text-[13.5px] font-extrabold text-coral-600 hover:underline" onclick={clearFocus}>{isMobile ? '← Trip home' : '← Back to dashboard'}</button>
     {#if focus === 'itinerary'}
-      <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={null} />
+      <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'bookings'}
-      <BookingsSection shareToken={trip.share_token} bookings={data.bookings ?? []} {currentParticipantId} {ownerMode} onHide={null} />
+      <BookingsSection shareToken={trip.share_token} bookings={data.bookings ?? []} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'map'}
-      <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={null} />
+      <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'crew'}
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} onHide={null} />
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} onHide={null} onSettings={goSettings} />
     {:else if focus === 'gear'}
-      <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={null} />
+      <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={null} onSettings={goSettings} />
     {:else if focus === 'food'}
-      <MealsSection shareToken={trip.share_token} {meals} {currentParticipantId} {dietaryNotes} {trip} {ownerMode} onHide={null} />
+      <MealsSection shareToken={trip.share_token} {meals} {currentParticipantId} {dietaryNotes} {trip} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'packing'}
-      <PackingSection shareToken={trip.share_token} packing={data.packing} {currentParticipantId} onHide={null} />
+      <PackingSection shareToken={trip.share_token} packing={data.packing} {currentParticipantId} onHide={null} onSettings={goSettings} />
     {:else if focus === 'expenses'}
-      <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} />
+      <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'photos'}
-      <ImmichSection url={trip.immich_album_url} onHide={null} />
+      <ImmichSection url={trip.immich_album_url} onHide={null} onSettings={goSettings} />
     {/if}
   </div>
 {:else if isMobile}
@@ -343,7 +334,7 @@
         {#if !isPast}<div class="mb-[var(--stack-gap,14px)]"><OverviewBrief {trip} /></div>{/if}
         {#if !isHidden('itinerary')}
           <section id="itinerary" class="anchor">
-            <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} />
+            <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} onSettings={goSettings} />
           </section>
         {/if}
       </div>

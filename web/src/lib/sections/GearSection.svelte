@@ -11,11 +11,13 @@
    *   gear: Array<any>,
    *   currentParticipantId: string | null,
    *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null
    * }}
    */
-  let { shareToken, gear, currentParticipantId, onHide = null, collapsed = false, onToggle = null } = $props();
+  let { shareToken, gear, currentParticipantId, onHide = null,
+    onSettings = null, collapsed = false, onToggle = null } = $props();
 
   const open = $derived(gear.filter((g) => g.remaining > 0).length);
 
@@ -79,7 +81,7 @@
   }
 </script>
 
-<SectionHeader emoji="🎒" title="Gear" subtitle="— who's bringing what" {onHide} {collapsed} {onToggle}>
+<SectionHeader emoji="🎒" title="Gear" subtitle="— who's bringing what" {onHide} {onSettings} {collapsed} {onToggle}>
   {#snippet action()}
     <Tooltip label="Add gear" placement="left">
       <button

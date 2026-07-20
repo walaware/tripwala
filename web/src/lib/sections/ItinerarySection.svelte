@@ -20,6 +20,7 @@
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null
    * }}
@@ -33,6 +34,7 @@
     currentParticipantId,
     ownerMode = false,
     onHide = null,
+    onSettings = null,
     collapsed = false,
     onToggle = null
   } = $props();
@@ -248,7 +250,7 @@
   const removeItem = (itemId) => run({ op: 'itin_item_remove', itemId });
 </script>
 
-<SectionHeader emoji="🗓️" title="What's the plan?" subtitle={plannedDays ? `${plannedDays} day${plannedDays === 1 ? '' : 's'} planned` : ''} {onHide} {collapsed} {onToggle} />
+<SectionHeader emoji="🗓️" title="What's the plan?" subtitle={plannedDays ? `${plannedDays} day${plannedDays === 1 ? '' : 's'} planned` : ''} {onHide} {onSettings} {collapsed} {onToggle} />
 <Card>
   <!-- The trip dates lead the plan (no separate Dates section). -->
   <div class="mb-3 flex items-baseline gap-2.5">

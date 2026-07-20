@@ -15,11 +15,13 @@
    *   trip?: any,
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null
    * }}
    */
-  let { shareToken, meals, currentParticipantId, dietaryNotes = [], trip = null, ownerMode = false, onHide = null, collapsed = false, onToggle = null } = $props();
+  let { shareToken, meals, currentParticipantId, dietaryNotes = [], trip = null, ownerMode = false, onHide = null,
+    onSettings = null, collapsed = false, onToggle = null } = $props();
 
   let busy = $state('');
   let confirmDrop = $state(''); // meal id whose owner-drop is awaiting confirmation
@@ -127,7 +129,7 @@
   }
 </script>
 
-<SectionHeader emoji="🍳" title="Food" subtitle="— who's cooking" {onHide} {collapsed} {onToggle} />
+<SectionHeader emoji="🍳" title="Food" subtitle="— who's cooking" {onHide} {onSettings} {collapsed} {onToggle} />
 
 <Card>
   {#if dietaryNotes.length}

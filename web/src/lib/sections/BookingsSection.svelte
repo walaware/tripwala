@@ -17,11 +17,13 @@
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean,
    *   onHide?: (() => void) | null,
+   *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null
    * }}
    */
-  let { shareToken, bookings, currentParticipantId, ownerMode = false, onHide = null, collapsed = false, onToggle = null } = $props();
+  let { shareToken, bookings, currentParticipantId, ownerMode = false, onHide = null,
+    onSettings = null, collapsed = false, onToggle = null } = $props();
 
   const canManage = (/** @type {Booking} */ b) => ownerMode || (!!currentParticipantId && b.addedBy === currentParticipantId);
   const total = $derived(bookings.length);
@@ -88,7 +90,7 @@
   const labelClass = 'mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400';
 </script>
 
-<SectionHeader emoji="🎫" title="Bookings" subtitle={total ? `${total} tracked` : ''} {onHide} {collapsed} {onToggle} />
+<SectionHeader emoji="🎫" title="Bookings" subtitle={total ? `${total} tracked` : ''} {onHide} {onSettings} {collapsed} {onToggle} />
 <Card>
   {#if !total && editId !== 'new'}
     <EmptyState
