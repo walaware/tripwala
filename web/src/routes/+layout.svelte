@@ -179,13 +179,11 @@
       : null
   );
 
-  // Settings live INLINE as the trip page's "Trip settings" section (a nav row in
-  // contextual mode). The shell's separate Settings gear is only for the standalone
-  // /settings route (planning trips not yet on the contextual shell). The account /
-  // profile surface is reached via the avatar's onProfile, not this gear.
-  const onSettings = $derived(
-    !inTrip && tripToken ? () => goto(`/${tripToken}/settings`) : null
-  );
+  // Trip settings is its own screen (the redesign's "one home"): the shell's
+  // Settings gear routes there whenever a trip is in view — contextual dashboard
+  // OR the settings route itself. Account / profile is reached via the avatar's
+  // onProfile, not this gear.
+  const onSettings = $derived(tripToken ? () => goto(`/${tripToken}/settings`) : null);
   const settingsActive = $derived(path.endsWith('/settings'));
 </script>
 
@@ -202,6 +200,7 @@
     subtitle={tripSubtitle}
     icon={tripIcon}
     scrollSpy={inTrip}
+    maxWidth={inTrip ? 1180 : undefined}
     {breakpoint}
   >
     {@render children()}

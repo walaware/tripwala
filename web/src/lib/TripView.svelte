@@ -1,23 +1,35 @@
 <script>
   import { onMount } from 'svelte';
-  import { invalidateAll } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
   import { tripAction } from '$lib/tripClient.js';
-  import OverviewSection from '$lib/sections/OverviewSection.svelte';
+  import { fmtDateRange, tripEmoji } from '$lib/format.js';
+  import { useShell } from '$lib/shell.svelte.js';
+
+  // Full section components — reused verbatim as the focused ("spoke") views.
   import ItinerarySection from '$lib/sections/ItinerarySection.svelte';
   import BookingsSection from '$lib/sections/BookingsSection.svelte';
   import MapSection from '$lib/sections/MapSection.svelte';
   import PeopleSection from '$lib/sections/PeopleSection.svelte';
   import GearSection from '$lib/sections/GearSection.svelte';
   import MealsSection from '$lib/sections/MealsSection.svelte';
-  import WrappedSection from '$lib/sections/WrappedSection.svelte';
-  import SafetySection from '$lib/sections/SafetySection.svelte';
-  import ImmichSection from '$lib/sections/ImmichSection.svelte';
   import PackingSection from '$lib/sections/PackingSection.svelte';
   import ExpensesSection from '$lib/sections/ExpensesSection.svelte';
-  import TripSettingsSection from '$lib/sections/TripSettingsSection.svelte';
-  import { fmtDateRange, tripEmoji } from '$lib/format.js';
-  import { page } from '$app/state';
-  import { useShell } from '$lib/shell.svelte.js';
+  import ImmichSection from '$lib/sections/ImmichSection.svelte';
+  import SafetySection from '$lib/sections/SafetySection.svelte';
+  import WrappedSection from '$lib/sections/WrappedSection.svelte';
+
+  // Dashboard chrome + compact rail summaries.
+  import TripHeader from '$lib/sections/TripHeader.svelte';
+  import StatStrip from '$lib/sections/StatStrip.svelte';
+  import RailModule from '$lib/sections/RailModule.svelte';
+  import CrewSummary from '$lib/sections/summary/CrewSummary.svelte';
+  import BookingsSummary from '$lib/sections/summary/BookingsSummary.svelte';
+  import MapSummary from '$lib/sections/summary/MapSummary.svelte';
+  import PackingSummary from '$lib/sections/summary/PackingSummary.svelte';
+  import GearSummary from '$lib/sections/summary/GearSummary.svelte';
+  import FoodSummary from '$lib/sections/summary/FoodSummary.svelte';
+  import ExpensesSummary from '$lib/sections/summary/ExpensesSummary.svelte';
 
   /**
    * @type {{
@@ -30,16 +42,15 @@
   let { data, ownerMode = false, currentParticipantId = null, top } = $props();
 
   const trip = $derived(data.trip);
-  const settingsHref = $derived(`${page.url.pathname.replace(/\/$/, '')}/settings`);
   const participants = $derived(data.participants);
   const gear = $derived(data.gear);
   const meals = $derived(data.meals);
-
+  const itineraryItems = $derived(data.itineraryItems ?? []);
   const emoji = $derived(tripEmoji(trip.trip_type));
-  const going = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'going').length);
 
-  // Post-trip phase: once the end date (UTC day) has passed — or the organizer
-  // marked it completed — the page leads with the Wrapped recap (#9).
+  const going = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'going').length);
+  const maybe = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'maybe').length);
+
   const isPast = $derived.by(() => {
     if (trip.status === 'completed') return true;
     const end = trip.end_date || trip.start_date;
@@ -50,83 +61,97 @@
     return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) >
       Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
   });
-  // Crew dietary notes (allergies / preferences) → shown to cooks in Meals.
+
   const dietaryNotes = $derived(
     participants
       .filter((/** @type {any} */ p) => (p.dietary || '').trim())
       .map((/** @type {any} */ p) => ({ name: p.display_name, dietary: p.dietary }))
   );
 
-  // dates · location · N going, joined with guaranteed spacing (Svelte collapses
-  // whitespace around an inline {#if}, which would otherwise tighten the dots).
   const meta = $derived(
     [
       trip.start_date ? fmtDateRange(trip.start_date, trip.end_date) : '',
       trip.location,
-      `${going} going`
+      `${going} going`,
+      maybe ? `${maybe} maybe` : ''
     ]
       .filter(Boolean)
       .join(' · ')
   );
 
-  // The signed-in viewer's participant on this trip (for Trip settings).
-  const me = $derived.by(() => {
-    const p = participants.find((/** @type {any} */ x) => x.id === currentParticipantId);
-    return p ? { name: p.display_name, avatar: p.avatar, notify: p.notify } : null;
-  });
+  const hidden = $derived(new Set(trip.hidden_sections ?? []));
+  /** @param {string} key */
+  const isHidden = (key) => hidden.has(key);
+  const hasSafety = $derived(!!(trip.emergency_info || '').trim());
+  const hasPhotos = $derived(!!(trip.immich_album_url || '').trim());
 
-  // The trip page is one scroll of `<section id>` modules under the shell's
-  // contextual section nav (scrollSpy). Each live row targets a `<section>`
-  // below; the dimmed "soon" rows are roadmap modules. Order + icons mirror
-  // docs/apps/tripwala.md (the design repo's contextual-nav contract).
-  const SECTION_NAV = [
-    { key: 'overview', label: 'Overview', icon: '✨', href: '#overview' },
-    { key: 'itinerary', label: 'Itinerary', icon: '🗓️', href: '#itinerary' },
-    { key: 'bookings', label: 'Bookings', icon: '🎫', href: '#bookings' },
-    { key: 'map', label: 'Map', icon: '🗺️', href: '#map' },
-    { key: 'crew', label: 'Members', icon: '🙌', href: '#crew' },
-    { key: 'gear', label: 'Gear', icon: '🎒', href: '#gear' },
-    { key: 'food', label: 'Food', icon: '🍳', href: '#food' },
-    { key: 'packing', label: 'Packing', icon: '🧳', href: '#packing' },
-    { key: 'expenses', label: 'Expenses', icon: '💸', href: '#expenses' },
-    { key: 'tripsettings', label: 'Settings', icon: '⚙️', href: '#tripsettings' }
+  // The rail modules (compact summaries on desktop; status rows on mobile). The
+  // house-question titles are the redesign's voice. Itinerary is the main column,
+  // not a rail card. Order mirrors the mockup, then the superset extras.
+  const RAIL = [
+    { key: 'crew', emoji: '🙌', title: "Who's coming?", nav: 'Members' },
+    { key: 'bookings', emoji: '🎫', title: "What's booked?", nav: 'Bookings' },
+    { key: 'map', emoji: '🗺️', title: 'Pins & places', nav: 'Map' },
+    { key: 'packing', emoji: '🧳', title: 'Packing list', nav: 'Packing' },
+    { key: 'gear', emoji: '🎒', title: "Who's bringing what?", nav: 'Gear' },
+    { key: 'food', emoji: '🍳', title: "Who's cooking?", nav: 'Food' },
+    { key: 'expenses', emoji: '💸', title: 'Who paid what?', nav: 'Expenses' }
+  ];
+  const visibleRail = $derived(RAIL.filter((r) => !hidden.has(r.key)));
+  // Modules turned off for this trip → one dashed "not on this trip" row.
+  const offModules = $derived(
+    [
+      ...(isHidden('itinerary') ? [{ emoji: '🗓️', nav: 'Itinerary' }] : []),
+      ...RAIL.filter((r) => hidden.has(r.key)),
+      ...(hasPhotos && isHidden('photos') ? [{ emoji: '📷', nav: 'Photos' }] : [])
+    ]
+  );
+
+  // Section nav published to the shell (scrollSpy anchors). Hidden sections drop
+  // out of the nav too.
+  const visibleNav = $derived(
+    [
+      { key: 'overview', label: 'Overview', icon: '✨', href: '#overview' },
+      ...(isPast ? [{ key: 'wrapped', label: 'Wrapped', icon: '🎉', href: '#wrapped' }] : []),
+      ...(hasSafety ? [{ key: 'safety', label: 'Safety', icon: '🚨', href: '#safety' }] : []),
+      ...(!isHidden('itinerary') ? [{ key: 'itinerary', label: 'Itinerary', icon: '🗓️', href: '#itinerary' }] : []),
+      ...visibleRail.map((r) => ({ key: r.key, label: r.nav, icon: r.emoji, href: `#${r.key}` })),
+      ...(hasPhotos && !isHidden('photos') ? [{ key: 'photos', label: 'Photos', icon: '📷', href: '#photos' }] : [])
+    ]
+  );
+
+  // ── Focus model ──────────────────────────────────────────────────────────
+  // A single `focus` (mapped to ?focus=<key>) drives both the desktop "open the
+  // full module" view and the mobile hub-&-spoke. Deep-linkable + back/forward.
+  const focus = $derived.by(() => {
+    const f = page.url.searchParams.get('focus');
+    return f && !hidden.has(f) ? f : null;
+  });
+  /** @param {string} key */
+  function setFocus(key) {
+    goto(`${page.url.pathname}?focus=${encodeURIComponent(key)}`, { noScroll: true, keepFocus: true });
+  }
+  function clearFocus() {
+    goto(page.url.pathname, { noScroll: true, keepFocus: true });
+  }
+  const settingsHref = $derived(`${page.url.pathname.replace(/\/$/, '')}/settings`);
+  const goSettings = () => goto(settingsHref);
+
+  function goDecide() {
+    const el = typeof document !== 'undefined' ? document.getElementById('itinerary') : null;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else setFocus('itinerary');
+  }
+
+  const addActions = [
+    { icon: '🗓️', label: 'Itinerary entry', onClick: () => setFocus('itinerary') },
+    { icon: '🎫', label: 'Booking', onClick: () => setFocus('bookings') },
+    { icon: '💸', label: 'Expense', onClick: () => setFocus('expenses') },
+    { icon: '📍', label: 'Map pin', onClick: () => setFocus('map') },
+    { icon: '🤔', label: 'Something to decide', onClick: () => setFocus('itinerary') }
   ];
 
-  // Sections an organizer has hidden for the whole trip (Overview + Trip settings
-  // are never hideable). Drives both the nav and which `<section>`s render.
-  const hidden = $derived(new Set(trip.hidden_sections ?? []));
-  const isHidden = (/** @type {string} */ key) => hidden.has(key);
-  // A Safety card appears (just after Overview) only when the organizer filled in
-  // emergency info; a wrapped trip leads the nav with the recap.
-  const hasSafety = $derived(!!(trip.emergency_info || '').trim());
-  // A Photos section appears when a shared Immich album is linked (opt-in).
-  const hasPhotos = $derived(!!(trip.immich_album_url || '').trim());
-  const fullNav = $derived.by(() => {
-    let nav = [...SECTION_NAV];
-    if (isPast) {
-      // Wrapped replaces Overview at the top of a past trip (Overview's content
-      // is folded into the recap), so swap the lead nav row to match.
-      nav = nav.filter((n) => n.key !== 'overview');
-      nav.unshift({ key: 'wrapped', label: 'Wrapped', icon: '🎉', href: '#wrapped' });
-    }
-    if (hasSafety) {
-      // Safety sits just after the lead recap/overview row.
-      const leadKey = isPast ? 'wrapped' : 'overview';
-      const i = nav.findIndex((n) => n.key === leadKey);
-      nav.splice(i + 1, 0, { key: 'safety', label: 'Safety', icon: '🚨', href: '#safety' });
-    }
-    if (hasPhotos) {
-      // Photos follows the lead/safety rows.
-      const afterKey = hasSafety ? 'safety' : isPast ? 'wrapped' : 'overview';
-      const i = nav.findIndex((n) => n.key === afterKey);
-      nav.splice(i + 1, 0, { key: 'photos', label: 'Photos', icon: '📷', href: '#photos' });
-    }
-    return nav;
-  });
-  const visibleNav = $derived(fullNav.filter((n) => !hidden.has(n.key)));
-
-  // Organizer hides a section straight from its header (restore from Trip
-  // settings). Each section gets an onHide only in ownerMode; guests never do.
+  // Organizer hides a section from its ⋯ menu (restore from Trip settings).
   /** @param {string} key */
   async function hideSection(key) {
     try {
@@ -139,45 +164,8 @@
   /** @param {string} key */
   const hideHandler = (key) => (ownerMode ? () => hideSection(key) : null);
 
-  // Per-viewer collapsed sections — folds a section's card locally for everyone
-  // who clicks (doesn't hide it for others). Persisted in localStorage so it
-  // survives reloads. The chevron + folding work for every viewer, organizer or
-  // not — distinct from Hide, which is organizer-only and trip-wide.
-  // Sections folded by default until the viewer chooses otherwise. The seed
-  // marker lets us apply these once, so a later manual expand isn't re-folded on
-  // the next load (and isn't forced on viewers who already have saved state).
-  const DEFAULT_COLLAPSED = ['tripsettings'];
-  const SEED_MARK = '__seeded_v1__';
-  let collapsed = $state(new Set(DEFAULT_COLLAPSED));
-  onMount(() => {
-    try {
-      const raw = localStorage.getItem(`tripwala:collapsed:${trip.id}`);
-      const set = raw ? new Set(JSON.parse(raw)) : new Set();
-      if (!set.has(SEED_MARK)) {
-        for (const k of DEFAULT_COLLAPSED) set.add(k);
-        set.add(SEED_MARK);
-      }
-      collapsed = set;
-    } catch (_) {
-      /* ignore corrupt/blocked storage */
-    }
-  });
-  /** @param {string} key */
-  function toggleCollapse(key) {
-    const next = new Set(collapsed);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    collapsed = next;
-    try {
-      localStorage.setItem(`tripwala:collapsed:${trip.id}`, JSON.stringify([...next]));
-    } catch (_) {
-      /* ignore */
-    }
-  }
-
-  // Publish the section nav + trip name up to the layout's AppShell, flipping it
-  // into contextual mode. The kit (≥v0.3.2) diffs scrollSpy by section-set content,
-  // so re-publishing on the 4s poll is harmless. Cleared on unmount.
+  // Publish the section nav + trip identity up to the layout's AppShell
+  // (contextual mode). Cleared on unmount.
   const shell = useShell();
   $effect(() => {
     shell.trip = { title: trip.name, subtitle: meta, emoji, nav: visibleNav };
@@ -186,12 +174,7 @@
     shell.trip = null;
   });
 
-  // Live updates via short-poll (the brief allows websocket OR short-poll). The
-  // browser can't subscribe to PocketBase directly now that collection rules are
-  // locked, so we re-run the server load every few seconds while the tab is
-  // visible — enough to feel live without hammering the server in the
-  // background. A write also refreshes immediately, so this mainly surfaces
-  // OTHER people's changes.
+  // Live updates via short-poll while the tab is visible.
   const POLL_MS = 4000;
   onMount(() => {
     /** @type {ReturnType<typeof setInterval> | undefined} */
@@ -209,7 +192,7 @@
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        invalidateAll(); // catch up immediately on refocus
+        invalidateAll();
         start();
       } else {
         stop();
@@ -224,159 +207,158 @@
   });
 </script>
 
-<!-- Sticky trip header — auto-measured by the shell for the scrollSpy offset
-     (data-appshell-sticky). Emoji tile + name + dates · where · N going. -->
-<header data-appshell-sticky class="trip-head" style="background: var(--color-bg-app)">
-  <div class="flex items-center gap-3">
-    <span
-      class="grid h-12 w-12 flex-none place-items-center rounded-md text-[26px]"
-      style="background: linear-gradient(135deg, var(--color-sand-200), var(--color-sand-300))"
-    >{emoji}</span>
-    <div class="min-w-0">
-      <h1 class="truncate font-display text-[21px] font-bold leading-tight text-cocoa-900">{trip.name}</h1>
-      <div class="flex items-center gap-1.5">
-        {#if isPast}
-          <span class="flex-none rounded-full bg-berry-200 px-1.5 py-0.5 font-body text-[10px] font-extrabold text-berry-600">🎉 Wrapped</span>
+{#if focus}
+  <!-- Focused module (spoke) — the full section alone, reached from a rail
+       summary / the ＋Add menu / a mobile status row. -->
+  <div class="trip-stack">
+    <button type="button" class="self-start font-body text-[13.5px] font-extrabold text-coral-600 hover:underline" onclick={clearFocus}>← Back to dashboard</button>
+    {#if focus === 'itinerary'}
+      <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={null} />
+    {:else if focus === 'bookings'}
+      <BookingsSection shareToken={trip.share_token} bookings={data.bookings ?? []} {currentParticipantId} {ownerMode} onHide={null} />
+    {:else if focus === 'map'}
+      <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={null} />
+    {:else if focus === 'crew'}
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} onHide={null} />
+    {:else if focus === 'gear'}
+      <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={null} />
+    {:else if focus === 'food'}
+      <MealsSection shareToken={trip.share_token} {meals} {currentParticipantId} {dietaryNotes} {trip} {ownerMode} onHide={null} />
+    {:else if focus === 'packing'}
+      <PackingSection shareToken={trip.share_token} packing={data.packing} {currentParticipantId} onHide={null} />
+    {:else if focus === 'expenses'}
+      <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} />
+    {:else if focus === 'photos'}
+      <ImmichSection url={trip.immich_album_url} onHide={null} />
+    {/if}
+  </div>
+{:else}
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} />
+
+  {#if top}{@render top()}{/if}
+
+  <div class="trip-stack">
+    {#if isPast}
+      <section id="wrapped" class="anchor">
+        <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} />
+      </section>
+    {:else}
+      <section id="overview" class="anchor">
+        <StatStrip {trip} {participants} {itineraryItems} onDecide={goDecide} />
+      </section>
+    {/if}
+
+    {#if hasSafety}
+      <section id="safety" class="anchor">
+        <SafetySection info={trip.emergency_info} />
+      </section>
+    {/if}
+
+    <div class="dash">
+      <!-- Main column: the itinerary (Phase 3 replaces this with the dense
+           city-grouped version). -->
+      <div class="dash-main">
+        {#if !isHidden('itinerary')}
+          <section id="itinerary" class="anchor">
+            <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} />
+          </section>
         {/if}
-        {#if meta}
-          <div class="truncate font-body text-[13px] font-extrabold text-coral-600">{meta}</div>
+      </div>
+
+      <!-- Rail column: compact module summaries; each opens the full module. -->
+      <div class="dash-rail">
+        {#each visibleRail as r (r.key)}
+          <RailModule emoji={r.emoji} title={r.title} id={r.key} {ownerMode} onHide={hideHandler(r.key)} onSettings={goSettings}>
+            {#if r.key === 'crew'}
+              <CrewSummary {participants} onOpen={() => setFocus('crew')} />
+            {:else if r.key === 'bookings'}
+              <BookingsSummary bookings={data.bookings ?? []} onOpen={() => setFocus('bookings')} />
+            {:else if r.key === 'map'}
+              <MapSummary mapPins={data.mapPins ?? []} cities={data.cities ?? []} onOpen={() => setFocus('map')} />
+            {:else if r.key === 'packing'}
+              <PackingSummary packing={data.packing ?? []} onOpen={() => setFocus('packing')} />
+            {:else if r.key === 'gear'}
+              <GearSummary {gear} onOpen={() => setFocus('gear')} />
+            {:else if r.key === 'food'}
+              <FoodSummary {meals} onOpen={() => setFocus('food')} />
+            {:else if r.key === 'expenses'}
+              <ExpensesSummary expenses={data.expenses ?? []} settlement={data.settlement} {currentParticipantId} onOpen={() => setFocus('expenses')} />
+            {/if}
+          </RailModule>
+        {/each}
+
+        {#if hasPhotos && !isHidden('photos')}
+          <RailModule emoji="📷" title="Shared photos" id="photos" {ownerMode} onHide={hideHandler('photos')} onSettings={goSettings}>
+            <button type="button" class="block font-body text-[13px] font-extrabold text-coral-600 hover:underline" onclick={() => setFocus('photos')}>Open the album →</button>
+          </RailModule>
+        {/if}
+
+        {#if offModules.length}
+          <button type="button" class="off-row" onclick={goSettings}>
+            ＋ Not on this trip: {offModules.map((m) => `${m.emoji} ${m.nav}`).join(' · ')} — turn on in settings
+          </button>
         {/if}
       </div>
     </div>
+
+    {#if !currentParticipantId}
+      <p class="px-1 text-center font-body text-xs font-bold text-cocoa-500">
+        Claim a name above to RSVP, grab gear, and sign up for food.
+      </p>
+    {/if}
   </div>
-</header>
-
-{#if top}{@render top()}{/if}
-
-<div class="trip-stack">
-  {#if isPast}
-    <section id="wrapped" class="trip-section" class:is-collapsed={collapsed.has('wrapped')}>
-      <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} collapsed={collapsed.has('wrapped')} onToggle={() => toggleCollapse('wrapped')} />
-    </section>
-  {/if}
-  {#if !isPast}
-    <!-- Upcoming/active: the live overview. Past trips fold this into Wrapped
-         (its location photo + description live there), so it isn't shown twice. -->
-    <section id="overview" class="trip-section" class:is-collapsed={collapsed.has('overview')}>
-      <OverviewSection {trip} {participants} {gear} {meals} {ownerMode} {settingsHref} collapsed={collapsed.has('overview')} onToggle={() => toggleCollapse('overview')} />
-    </section>
-  {/if}
-  {#if hasSafety}
-    <section id="safety" class="trip-section" class:is-collapsed={collapsed.has('safety')}>
-      <SafetySection info={trip.emergency_info} collapsed={collapsed.has('safety')} onToggle={() => toggleCollapse('safety')} />
-    </section>
-  {/if}
-  {#if hasPhotos && !isHidden('photos')}
-    <section id="photos" class="trip-section" class:is-collapsed={collapsed.has('photos')}>
-      <ImmichSection url={trip.immich_album_url} onHide={hideHandler('photos')} collapsed={collapsed.has('photos')} onToggle={() => toggleCollapse('photos')} />
-    </section>
-  {/if}
-  {#if !isHidden('itinerary')}
-    <section id="itinerary" class="trip-section" class:is-collapsed={collapsed.has('itinerary')}>
-      <ItinerarySection shareToken={trip.share_token} itineraryItems={data.itineraryItems ?? []} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} collapsed={collapsed.has('itinerary')} onToggle={() => toggleCollapse('itinerary')} />
-    </section>
-  {/if}
-  {#if !isHidden('bookings')}
-    <section id="bookings" class="trip-section" class:is-collapsed={collapsed.has('bookings')}>
-      <BookingsSection shareToken={trip.share_token} bookings={data.bookings ?? []} {currentParticipantId} {ownerMode} onHide={hideHandler('bookings')} collapsed={collapsed.has('bookings')} onToggle={() => toggleCollapse('bookings')} />
-    </section>
-  {/if}
-  {#if !isHidden('map')}
-    <section id="map" class="trip-section" class:is-collapsed={collapsed.has('map')}>
-      <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={hideHandler('map')} collapsed={collapsed.has('map')} onToggle={() => toggleCollapse('map')} />
-    </section>
-  {/if}
-  {#if !isHidden('crew')}
-    <section id="crew" class="trip-section" class:is-collapsed={collapsed.has('crew')}>
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} onHide={hideHandler('crew')} collapsed={collapsed.has('crew')} onToggle={() => toggleCollapse('crew')} />
-    </section>
-  {/if}
-  {#if !isHidden('gear')}
-    <section id="gear" class="trip-section" class:is-collapsed={collapsed.has('gear')}>
-      <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={hideHandler('gear')} collapsed={collapsed.has('gear')} onToggle={() => toggleCollapse('gear')} />
-    </section>
-  {/if}
-  {#if !isHidden('food')}
-    <section id="food" class="trip-section" class:is-collapsed={collapsed.has('food')}>
-      <MealsSection shareToken={trip.share_token} {meals} {currentParticipantId} dietaryNotes={dietaryNotes} {trip} {ownerMode} onHide={hideHandler('food')} collapsed={collapsed.has('food')} onToggle={() => toggleCollapse('food')} />
-    </section>
-  {/if}
-  {#if !isHidden('packing')}
-    <section id="packing" class="trip-section" class:is-collapsed={collapsed.has('packing')}>
-      <PackingSection shareToken={trip.share_token} packing={data.packing} {currentParticipantId} onHide={hideHandler('packing')} collapsed={collapsed.has('packing')} onToggle={() => toggleCollapse('packing')} />
-    </section>
-  {/if}
-  {#if !isHidden('expenses')}
-    <section id="expenses" class="trip-section" class:is-collapsed={collapsed.has('expenses')}>
-      <ExpensesSection
-        shareToken={trip.share_token}
-        expenses={data.expenses}
-        settlement={data.settlement}
-        {currentParticipantId}
-        {ownerMode}
-        onHide={hideHandler('expenses')}
-        collapsed={collapsed.has('expenses')}
-        onToggle={() => toggleCollapse('expenses')}
-      />
-    </section>
-  {/if}
-  <section id="tripsettings" class="trip-section" class:is-collapsed={collapsed.has('tripsettings')}>
-    <TripSettingsSection
-      shareToken={trip.share_token}
-      {ownerMode}
-      {me}
-      {trip}
-      members={data.members ?? []}
-      {currentParticipantId}
-      joinPolicy={trip.join_policy}
-      inviteVisibility={trip.invite_visibility}
-      pending={data.pending ?? []}
-      invites={data.invites ?? []}
-      emailEnabled={data.emailEnabled ?? false}
-      immichEnabled={data.immichEnabled ?? false}
-      collapsed={collapsed.has('tripsettings')}
-      onToggle={() => toggleCollapse('tripsettings')}
-    />
-  </section>
-
-  {#if !currentParticipantId}
-    <p class="px-1 text-center font-body text-xs font-bold text-cocoa-500">
-      Claim a name above to RSVP, grab gear, and sign up for food.
-    </p>
-  {/if}
-</div>
+{/if}
 
 <style>
-  /* Sticks under the shell's scroll container; the shell measures its height for
-     the scrollSpy offset so section anchors land just below it. */
-  .trip-head {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    padding: 16px 0 14px;
-    margin-bottom: var(--stack-gap, 14px);
-    border-bottom: 1px solid var(--color-sand-300);
-    /* The header background is opaque, but the margin-bottom gap below the
-       border is not — so cards scrolling under the sticky header butt straight
-       against the border and make its edge look ragged. Paint an opaque strip
-       of the app background over that gap so the border always sits on a clean
-       buffer. */
-    background: var(--color-bg-app);
-    box-shadow: 0 var(--stack-gap, 14px) 0 var(--color-bg-app);
-  }
   .trip-stack {
     display: flex;
     flex-direction: column;
     gap: var(--stack-gap, 14px);
   }
-  /* Belt-and-suspenders for native anchor jumps; the shell scrolls with a
-     measured offset, but keep sections clear of the sticky header regardless. */
-  .trip-section {
-    scroll-margin-top: 120px;
+  .anchor {
+    scroll-margin-top: 116px;
   }
-  /* Collapsed: fold everything below the section's header (its first child). The
-     header itself (with the chevron) stays so it can be re-expanded. */
-  .trip-section.is-collapsed > :global(*:not(:first-child)) {
-    display: none;
+  .dash {
+    display: flex;
+    gap: 26px;
+    align-items: flex-start;
+  }
+  .dash-main {
+    flex: 1.5;
+    min-width: 0;
+  }
+  .dash-rail {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--stack-gap, 14px);
+  }
+  /* Below the desktop breakpoint the dashboard stacks (Phase 4 swaps this for
+     the mobile hub status list). */
+  @media (max-width: 919px) {
+    .dash {
+      flex-direction: column;
+    }
+    .dash-main,
+    .dash-rail {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+  .off-row {
+    width: 100%;
+    text-align: left;
+    border: 1.5px dashed var(--color-sand-300);
+    border-radius: var(--radius-md, 10px);
+    padding: 12px 14px;
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    transition: border-color 0.15s;
+  }
+  .off-row:hover {
+    border-color: var(--color-coral-300);
   }
 </style>
