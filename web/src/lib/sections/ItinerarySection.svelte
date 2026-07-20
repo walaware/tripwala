@@ -79,19 +79,58 @@
     return [...rangeKeys, ...extra].map((key) => ({ key, label: keyLabel(key), items: itemsByDate[key] ?? [] }));
   });
   const total = $derived(itineraryItems.length);
+  // Distinct days that actually have something planned — the density headline.
+  const plannedDays = $derived(groups.filter((g) => g.items.length).length);
 
-  // Annotate each day group with its city, flagging the first group of each
-  // city run so the template can drop a band header above it.
-  const bandedGroups = $derived.by(() => {
-    /** @type {string | null | undefined} */
-    let prev = undefined;
-    return groups.map((g) => {
-      const cityId = cityIdForDate(g.key);
-      const showBand = cityId !== prev;
-      prev = cityId;
-      return { ...g, cityId, showBand };
-    });
+  // Annotate each day group with its city (used to build the city sections).
+  const bandedGroups = $derived.by(() =>
+    groups.map((g) => ({ ...g, cityId: cityIdForDate(g.key) }))
+  );
+
+  /** @param {string} key YYYY-MM-DD */
+  const isoOf = (key) => `${key}T00:00:00.000Z`;
+  /** Short "Sun 26" chip label for an open day. @param {string} key */
+  const chipLabel = (key) => `${fmtWeekday(isoOf(key))} ${Number(key.slice(8, 10))}`;
+
+  /**
+   * @typedef {{ key: string, cityId: string | null, dayGroups: Array<{ key: string, label: string, items: ItinItem[] }>, openDays: Array<{ key: string, chip: string }>, openLabel: string }} CitySection
+   */
+
+  // Density: only planned days render as rows. Empty days within a city collapse
+  // into that city's ONE dashed "N open days" row (expandable to per-day chips).
+  const citySections = $derived.by(() => {
+    /** @type {CitySection[]} */
+    const secs = [];
+    /** @type {CitySection | null} */
+    let cur = null;
+    for (const g of bandedGroups) {
+      if (!cur || g.cityId !== cur.cityId) {
+        cur = { key: g.cityId ?? '__none__', cityId: g.cityId, dayGroups: [], openDays: [], openLabel: '' };
+        secs.push(cur);
+      }
+      if (g.items.length) cur.dayGroups.push({ key: g.key, label: g.label, items: g.items });
+      else cur.openDays.push({ key: g.key, chip: chipLabel(g.key) });
+    }
+    for (const s of secs) {
+      const n = s.openDays.length;
+      if (!n) continue;
+      if (!s.dayGroups.length) s.openLabel = `Nothing planned yet · ${n} open day${n === 1 ? '' : 's'}`;
+      else if (n === 1) s.openLabel = `${s.openDays[0].chip} · 1 open day`;
+      else s.openLabel = `${s.openDays[0].chip} → ${s.openDays[n - 1].chip} · ${n} open days`;
+    }
+    return secs;
   });
+
+  // Per-city expansion of the collapsed open-days row (plain state, no Disclosure).
+  /** @type {Set<string>} */
+  let expandedCities = $state(new Set());
+  /** @param {string} key */
+  function toggleCity(key) {
+    const next = new Set(expandedCities);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    expandedCities = next;
+  }
 
   let busy = $state(false);
 
@@ -202,7 +241,7 @@
   const removeItem = (itemId) => run({ op: 'itin_item_remove', itemId });
 </script>
 
-<SectionHeader emoji="🗓️" title="Itinerary" subtitle={total ? `${total} planned` : ''} {onHide} {collapsed} {onToggle} />
+<SectionHeader emoji="🗓️" title="What's the plan?" subtitle={plannedDays ? `${plannedDays} day${plannedDays === 1 ? '' : 's'} planned` : ''} {onHide} {collapsed} {onToggle} />
 <Card>
   <!-- The trip dates lead the plan (no separate Dates section). -->
   <div class="mb-3 flex items-baseline gap-2.5">
@@ -265,6 +304,33 @@
     </div>
   {/if}
 
+  <!-- Open decisions surface at the TOP: undated suggestions the crew upvotes
+       (primary-soft block), not buried at the bottom of the plan. -->
+  {#if undated.length || canVote}
+    <div class="mb-4 rounded-xl p-3" style="background: var(--color-primary-soft)">
+      <div class="mb-2 flex items-center gap-2 px-0.5">
+        <span class="font-display text-[14px] font-bold" style="color: var(--color-primary-press, var(--color-coral-700))">🤔 To decide</span>
+        <span class="h-px flex-1" style="background: color-mix(in srgb, var(--color-primary-press, #b45309) 20%, transparent)"></span>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        {#each undated as it (it.id)}
+          {@render itemRow(it)}
+        {/each}
+        {#if canVote}
+          {#if addKey === ''}
+            {@render addForm(true)}
+          {:else}
+            <button
+              type="button"
+              onclick={() => openAdd('')}
+              class="self-start rounded-full px-2.5 py-1 font-body text-[13px] font-extrabold text-coral-600 transition hover:bg-coral-100"
+            >＋ Add a decision</button>
+          {/if}
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   {#if !days.length && !total}
     <EmptyState
       emoji="🗓️"
@@ -274,17 +340,27 @@
   {/if}
 
   <div class="flex flex-col gap-4">
-    {#each bandedGroups as g (g.key)}
-      {#if g.showBand && g.cityId && cityById[g.cityId]}
+    {#each citySections as sec (sec.key)}
+      {#if sec.cityId && cityById[sec.cityId]}
+        {@const c = cityById[sec.cityId]}
+        {@const nights = tripLength(c.start_date, c.end_date).nights}
         <div class="flex items-center gap-2 pt-1">
-          <span class="font-display text-[15px] font-bold text-sky-700">📍 {cityById[g.cityId].name}</span>
+          <span class="font-display text-[15px] font-bold text-sky-700">📍 {c.name}</span>
+          {#if c.start_date}
+            <span class="font-body text-[12.5px] font-extrabold text-sky-600/80">
+              {fmtDateRange(isoOf(c.start_date), c.end_date ? isoOf(c.end_date) : '')}{#if nights > 0} · {nights} night{nights === 1 ? '' : 's'}{/if}
+            </span>
+          {/if}
           <span class="h-px flex-1 bg-sky-200"></span>
         </div>
       {/if}
-      {@render dayGroup(g.key, g.label, g.items)}
+      {#each sec.dayGroups as g (g.key)}
+        {@render dayGroup(g.key, g.label, g.items)}
+      {/each}
+      {#if sec.openLabel && canVote}
+        {@render openDaysRow(sec)}
+      {/if}
     {/each}
-    <!-- Undated suggestions: free-form decisions the group upvotes. -->
-    {@render dayGroup('', 'To decide', undated, true)}
   </div>
 </Card>
 
@@ -315,6 +391,37 @@
           {/if}
         {/if}
       </div>
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet openDaysRow(/** @type {CitySection} */ sec)}
+  {@const expanded = expandedCities.has(sec.key)}
+  {#if !expanded}
+    <button
+      type="button"
+      onclick={() => toggleCity(sec.key)}
+      class="self-start rounded-full border-2 border-dashed border-sand-300 px-3 py-1.5 font-body text-[13px] font-extrabold text-cocoa-500 transition hover:border-coral-300 hover:text-coral-600"
+    >＋ {sec.openLabel}</button>
+  {:else}
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap items-center gap-1.5">
+        {#each sec.openDays as d (d.key)}
+          <button
+            type="button"
+            onclick={() => openAdd(d.key)}
+            class="rounded-full border-2 border-dashed px-2.5 py-1 font-body text-[12.5px] font-extrabold transition hover:border-coral-300 hover:text-coral-600 {addKey === d.key ? 'border-coral-400 text-coral-600' : 'border-sand-300 text-cocoa-500'}"
+          >＋ {d.chip}</button>
+        {/each}
+        <button
+          type="button"
+          onclick={() => toggleCity(sec.key)}
+          class="px-2 py-1 font-body text-[12.5px] font-extrabold text-cocoa-400 hover:text-cocoa-600"
+        >collapse</button>
+      </div>
+      {#if addKey !== null && sec.openDays.some((d) => d.key === addKey)}
+        {@render addForm(false)}
+      {/if}
     </div>
   {/if}
 {/snippet}
