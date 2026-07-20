@@ -121,6 +121,13 @@
     return secs;
   });
 
+  // Cities already shown as band headers below — so the management block at the
+  // top only needs to surface the ones that AREN'T banded (undated cities, or
+  // cities whose range falls entirely outside the trip's days). Avoids showing
+  // each city twice (management chip + band header).
+  const bandedCityIds = $derived(new Set(citySections.map((s) => s.cityId).filter(Boolean)));
+  const orphanCities = $derived(cities.filter((c) => !bandedCityIds.has(c.id)));
+
   // Per-city expansion of the collapsed open-days row (plain state, no Disclosure).
   /** @type {Set<string>} */
   let expandedCities = $state(new Set());
@@ -251,55 +258,38 @@
     {/if}
   </div>
 
-  <!-- Cities (#3): dated legs of a multi-stop trip. Chips for everyone; add/edit
-       for organizers. Days below band under the city whose range contains them. -->
-  {#if cities.length || ownerMode}
+  <!-- Cities (#3): dated legs of a multi-stop trip. Each city renders once as a
+       band header over its days below (with organizer edit/remove there). This
+       top block only surfaces the "＋ Add city" control, the add form, and any
+       cities that AREN'T banded below (undated / out-of-range) — so a city never
+       shows twice. -->
+  {#if orphanCities.length || ownerMode}
     <div class="mb-3">
-      <div class="flex flex-wrap items-center gap-1.5">
-        {#each cities as c (c.id)}
-          <span class="group inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2.5 py-1 font-body text-[12.5px] font-extrabold text-sky-700">
-            <span aria-hidden="true">📍</span>
-            <span>{c.name}</span>
-            {#if c.start_date}
-              <span class="font-bold text-sky-600/80">· {fmtDateRange(`${c.start_date}T00:00:00.000Z`, c.end_date ? `${c.end_date}T00:00:00.000Z` : '')}</span>
-            {/if}
-            {#if ownerMode}
-              <button type="button" aria-label="Edit city" onclick={() => openCityEdit(c)} class="ml-0.5 text-sky-500 hover:text-sky-800">✎</button>
-              <button type="button" aria-label="Remove city" onclick={() => removeCity(c.id)} disabled={busy} class="text-sky-500 hover:text-berry-600">✕</button>
-            {/if}
-          </span>
-        {/each}
-        {#if ownerMode && !cityFormOpen && !cityEditId}
-          <button type="button" onclick={openCityAdd} class="rounded-full px-2.5 py-1 font-body text-[12.5px] font-extrabold text-sky-600 transition hover:bg-sky-100">＋ Add city</button>
-        {/if}
-      </div>
-
-      {#if ownerMode && (cityFormOpen || cityEditId)}
-        <div class="mt-2 flex flex-col gap-2 rounded-lg bg-sand-100 p-2.5 sm:flex-row sm:items-end">
-          <div class="flex-1">
-            <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="city-name">City</label>
-            <input
-              id="city-name"
-              bind:value={cName}
-              placeholder="Tokyo"
-              maxlength="120"
-              onkeydown={(e) => e.key === 'Enter' && submitCity()}
-              class="w-full rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-sky-400"
-            />
-          </div>
-          <div>
-            <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="city-start">Arrive</label>
-            <input id="city-start" type="date" bind:value={cStart} class="rounded-md border-2 border-sand-300 bg-white px-2.5 py-1.5 font-body text-[13px] font-bold text-cocoa-900 outline-none focus:border-sky-400" />
-          </div>
-          <div>
-            <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="city-end">Leave</label>
-            <input id="city-end" type="date" bind:value={cEnd} min={cStart} class="rounded-md border-2 border-sand-300 bg-white px-2.5 py-1.5 font-body text-[13px] font-bold text-cocoa-900 outline-none focus:border-sky-400" />
-          </div>
-          <div class="flex gap-2">
-            <Button variant="soft" size="sm" onclick={submitCity} disabled={busy || !cName.trim()}>{cityEditId ? 'Save' : 'Add'}</Button>
-            <Button variant="ghost" size="sm" onclick={closeCityForm} disabled={busy}>Cancel</Button>
-          </div>
+      {#if orphanCities.length || (ownerMode && !cityFormOpen && !cityEditId)}
+        <div class="flex flex-wrap items-center gap-1.5">
+          {#each orphanCities as c (c.id)}
+            <span class="group inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2.5 py-1 font-body text-[12.5px] font-extrabold text-sky-700">
+              <span aria-hidden="true">📍</span>
+              <span>{c.name}</span>
+              {#if c.start_date}
+                <span class="font-bold text-sky-600/80">· {fmtDateRange(`${c.start_date}T00:00:00.000Z`, c.end_date ? `${c.end_date}T00:00:00.000Z` : '')}</span>
+              {/if}
+              {#if ownerMode}
+                <button type="button" aria-label="Edit city" onclick={() => openCityEdit(c)} class="ml-0.5 text-sky-500 hover:text-sky-800">✎</button>
+                <button type="button" aria-label="Remove city" onclick={() => removeCity(c.id)} disabled={busy} class="text-sky-500 hover:text-berry-600">✕</button>
+              {/if}
+            </span>
+          {/each}
+          {#if ownerMode && !cityFormOpen && !cityEditId}
+            <button type="button" onclick={openCityAdd} class="rounded-full px-2.5 py-1 font-body text-[12.5px] font-extrabold text-sky-600 transition hover:bg-sky-100">＋ Add city</button>
+          {/if}
         </div>
+      {/if}
+
+      <!-- The add form, and edits of orphan (non-banded) cities, render here;
+           edits of a banded city render under its band header below. -->
+      {#if ownerMode && (cityFormOpen || (cityEditId && orphanCities.some((c) => c.id === cityEditId)))}
+        {@render cityForm()}
       {/if}
     </div>
   {/if}
@@ -344,15 +334,24 @@
       {#if sec.cityId && cityById[sec.cityId]}
         {@const c = cityById[sec.cityId]}
         {@const nights = tripLength(c.start_date, c.end_date).nights}
-        <div class="flex items-center gap-2 pt-1">
+        <div class="group flex items-center gap-2 pt-1">
           <span class="font-display text-[15px] font-bold text-sky-700">📍 {c.name}</span>
           {#if c.start_date}
             <span class="font-body text-[12.5px] font-extrabold text-sky-600/80">
               {fmtDateRange(isoOf(c.start_date), c.end_date ? isoOf(c.end_date) : '')}{#if nights > 0} · {nights} night{nights === 1 ? '' : 's'}{/if}
             </span>
           {/if}
+          {#if ownerMode}
+            <span class="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+              <button type="button" aria-label="Edit city" onclick={() => openCityEdit(c)} class="text-sky-500 hover:text-sky-800">✎</button>
+              <button type="button" aria-label="Remove city" onclick={() => removeCity(c.id)} disabled={busy} class="text-sky-500 hover:text-berry-600">✕</button>
+            </span>
+          {/if}
           <span class="h-px flex-1 bg-sky-200"></span>
         </div>
+        {#if ownerMode && cityEditId === sec.cityId}
+          {@render cityForm()}
+        {/if}
       {/if}
       {#each sec.dayGroups as g (g.key)}
         {@render dayGroup(g.key, g.label, g.items)}
@@ -363,6 +362,34 @@
     {/each}
   </div>
 </Card>
+
+{#snippet cityForm()}
+  <div class="mt-2 flex flex-col gap-2 rounded-lg bg-sand-100 p-2.5 sm:flex-row sm:items-end">
+    <div class="flex-1">
+      <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="city-name">City</label>
+      <input
+        id="city-name"
+        bind:value={cName}
+        placeholder="Tokyo"
+        maxlength="120"
+        onkeydown={(e) => e.key === 'Enter' && submitCity()}
+        class="w-full rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-sky-400"
+      />
+    </div>
+    <div>
+      <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="city-start">Arrive</label>
+      <input id="city-start" type="date" bind:value={cStart} class="rounded-md border-2 border-sand-300 bg-white px-2.5 py-1.5 font-body text-[13px] font-bold text-cocoa-900 outline-none focus:border-sky-400" />
+    </div>
+    <div>
+      <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="city-end">Leave</label>
+      <input id="city-end" type="date" bind:value={cEnd} min={cStart} class="rounded-md border-2 border-sand-300 bg-white px-2.5 py-1.5 font-body text-[13px] font-bold text-cocoa-900 outline-none focus:border-sky-400" />
+    </div>
+    <div class="flex gap-2">
+      <Button variant="soft" size="sm" onclick={submitCity} disabled={busy || !cName.trim()}>{cityEditId ? 'Save' : 'Add'}</Button>
+      <Button variant="ghost" size="sm" onclick={closeCityForm} disabled={busy}>Cancel</Button>
+    </div>
+  </div>
+{/snippet}
 
 {#snippet dayGroup(/** @type {string} */ key, /** @type {string} */ label, /** @type {ItinItem[]} */ items, /** @type {boolean} */ decisions = false)}
   {#if items.length || canVote}
