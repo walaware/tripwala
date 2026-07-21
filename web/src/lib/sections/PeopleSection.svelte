@@ -1,8 +1,9 @@
 <script>
   import { invalidateAll } from '$app/navigation';
   import { tripAction } from '$lib/tripClient.js';
-  import { Card, Avatar, SegmentedControl, LeanMeter, Chip, PersonList, Button } from '@walaware/design';
+  import { Card, Avatar, SegmentedControl, LeanMeter, Chip, Button } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
+  import TripInviteModal from '$lib/sections/TripInviteModal.svelte';
 
   // LeanMeter's `lean` prop is a 1|2|3 union; narrow the raw number to it.
   /** @param {number} n @returns {1 | 2 | 3} */
@@ -20,37 +21,22 @@
    *   onToggle?: (() => void) | null,
    *   isPast?: boolean,
    *   invitableFriends?: Array<{ id: string, name: string, avatar?: string }>,
-   *   inviteVisibility?: string
+   *   inviteVisibility?: string,
+   *   joinPolicy?: string,
+   *   inviteUrl?: string,
+   *   ownerUrl?: string,
+   *   emailEnabled?: boolean
    * }}
    */
   let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null,
-    onSettings = null, collapsed = false, onToggle = null, isPast = false, invitableFriends = [], inviteVisibility = 'everyone' } = $props();
+    onSettings = null, collapsed = false, onToggle = null, isPast = false, invitableFriends = [],
+    inviteVisibility = 'everyone', joinPolicy = 'instant', inviteUrl = '', ownerUrl = '', emailEnabled = false } = $props();
 
-  // Invite from friends: allowed for everyone unless the trip restricts invites
-  // to organizers. Once invited (this session) a friend drops from the picker on
-  // reload; `invitedNow` gives instant feedback before that.
-  const canInviteFriends = $derived(!isPast && (ownerMode || inviteVisibility !== 'organizers'));
-  /** @type {Set<string>} */
-  let invitedNow = $state(new Set());
-  let invitingId = $state('');
-  // PersonList uses `src` for the photo — map our `avatar` onto it.
-  const invitable = $derived(
-    invitableFriends.filter((f) => !invitedNow.has(f.id)).map((f) => ({ id: f.id, name: f.name, src: f.avatar }))
-  );
-
-  /** @param {{ id: string }} friend */
-  async function inviteFriend(friend) {
-    if (invitingId) return;
-    invitingId = friend.id;
-    try {
-      await tripAction(shareToken, { op: 'invite_friend', userId: friend.id });
-      invitedNow = new Set([...invitedNow, friend.id]);
-    } catch (_) {
-      /* reconciled on next load */
-    } finally {
-      invitingId = '';
-    }
-  }
+  // Inviting is a one-tap action from this header (the ＋ button → a Modal),
+  // allowed for everyone unless the trip restricts invites to organizers.
+  const canInvite = $derived(!isPast && (ownerMode || inviteVisibility !== 'organizers'));
+  const showInvite = $derived(ownerMode || inviteVisibility === 'everyone');
+  let inviteOpen = $state(false);
 
   /** @type {Record<string, string>} */
   const statusEmoji = { going: '🔥', maybe: '🤔', out: '💤' };
@@ -148,6 +134,9 @@
   {#snippet action()}
     <Chip tone="leaf">{going} {isPast ? 'went' : 'going'}</Chip>
     {#if maybe > 0 && !isPast}<Chip tone="sun">{maybe} maybe</Chip>{/if}
+    {#if canInvite}
+      <Button variant="soft" size="sm" onclick={() => (inviteOpen = true)}>＋ Invite</Button>
+    {/if}
   {/snippet}
 </SectionHeader>
 
@@ -275,20 +264,17 @@
   </div>
 </Card>
 
-{#if canInviteFriends && invitable.length}
-  <Card class="mt-3">
-    <div class="font-display text-[15px] font-bold text-text-strong">Invite friends</div>
-    <p class="mt-0.5 font-body text-[12.5px] font-bold text-text-muted">
-      They'll get an invitation on their dashboard — no link to copy.
-    </p>
-    <div class="mt-2.5">
-      <PersonList people={invitable} divider>
-        {#snippet action(person)}
-          <Button variant="secondary" size="sm" disabled={invitingId === person.id} onclick={() => inviteFriend(person)}>
-            {invitingId === person.id ? 'Inviting…' : 'Invite'}
-          </Button>
-        {/snippet}
-      </PersonList>
-    </div>
-  </Card>
+{#if canInvite}
+  <TripInviteModal
+    open={inviteOpen}
+    onClose={() => (inviteOpen = false)}
+    {shareToken}
+    {inviteUrl}
+    {ownerUrl}
+    {showInvite}
+    {ownerMode}
+    {joinPolicy}
+    {invitableFriends}
+    {emailEnabled}
+  />
 {/if}

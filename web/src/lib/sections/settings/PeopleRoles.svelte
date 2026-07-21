@@ -1,52 +1,22 @@
 <script>
-  import { invalidateAll } from '$app/navigation';
-  import { Avatar, Button, CopyField } from '@walaware/design';
-  import { inputClass, labelClass, hintClass } from './styles.js';
-  import { tripAction } from '$lib/tripClient.js';
+  import { Avatar, Button } from '@walaware/design';
+  import { labelClass } from './styles.js';
 
   /**
-   * Everything about *who* is on the trip: join requests, roles, co-organizer
-   * invites, and the co-organizer link.
+   * Roles management (organizers): approve/deny join requests, promote/demote,
+   * remove members, and revoke outstanding email invites. Inviting NEW people
+   * (links + typeahead + co-organizer) lives in the "Who's in" invite modal now.
    *
    * @type {{
-   *   shareToken: string,
-   *   ownerUrl: string,
    *   members: Array<{ id: string, display_name: string, role: string }>,
    *   pending: Array<{ id: string, display_name: string, avatar?: string }>,
    *   invites: Array<{ id: string, email: string, role: string }>,
    *   currentParticipantId: string | null,
-   *   emailEnabled: boolean,
    *   busy: string,
    *   act: (op: string, payload?: Record<string, unknown>, tag?: string) => Promise<void>
    * }}
    */
-  let {
-    shareToken, ownerUrl, members, pending, invites, currentParticipantId, emailEnabled, busy, act
-  } = $props();
-
-  // Invite a co-organizer by email (#16): records an organizer grant so they
-  // join straight as an organizer, and emails the link if SMTP is set up.
-  let coOrgEmail = $state('');
-  let coOrgMsg = $state('');
-  let coOrgError = $state('');
-  const validCoOrg = $derived(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(coOrgEmail.trim()));
-
-  async function inviteCoOrganizer() {
-    if (!validCoOrg || busy) return;
-    coOrgError = '';
-    coOrgMsg = '';
-    try {
-      const res = await tripAction(shareToken, { op: 'invite_organizer', email: coOrgEmail.trim() });
-      coOrgMsg = res?.emailed
-        ? 'Invited — we emailed them the link.'
-        : 'Invited — share the invite link with them; they join as an organizer.';
-      coOrgEmail = '';
-      await invalidateAll();
-      setTimeout(() => (coOrgMsg = ''), 4000);
-    } catch (_) {
-      coOrgError = "Couldn't send the invite — try again.";
-    }
-  }
+  let { members, pending, invites, currentParticipantId, busy, act } = $props();
 </script>
 
 {#if pending.length}
@@ -92,27 +62,10 @@
 </div>
 <p class="mt-2 font-body text-[11.5px] font-bold text-cocoa-400">Name-only guests (not signed in) appear on the trip, not here.</p>
 
-<div class="mt-4">
-  <div class={labelClass}>Add a co-organizer</div>
-  <p class="mb-2 {hintClass}">
-    Invite by email — when they sign in to join, they land as an organizer.{#if !emailEnabled} (We'll record it; share the invite link with them since email isn't set up.){/if}
-  </p>
-  <div class="flex gap-2">
-    <input
-      type="email" bind:value={coOrgEmail} placeholder="name@email.com"
-      autocomplete="off" class="{inputClass} min-w-0 flex-1"
-      onkeydown={(e) => e.key === 'Enter' && inviteCoOrganizer()}
-    />
-    <Button variant="primary" size="md" onclick={inviteCoOrganizer} disabled={!validCoOrg || busy === 'invite_organizer'}>
-      {busy === 'invite_organizer' ? 'Inviting…' : 'Invite'}
-    </Button>
-  </div>
-  {#if coOrgMsg}<p class="mt-2 font-body text-[12.5px] font-bold text-leaf-600">{coOrgMsg}</p>{/if}
-  {#if coOrgError}<p class="mt-2 font-body text-[12.5px] font-bold text-berry-600">{coOrgError}</p>{/if}
-
-  {#if invites.length}
-    <div class="mt-3 flex flex-col gap-1.5">
-      <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400">Pending invites</div>
+{#if invites.length}
+  <div class="mt-4">
+    <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400">Pending invites</div>
+    <div class="mt-1.5 flex flex-col gap-1.5">
       {#each invites as inv (inv.id)}
         <div class="flex items-center gap-2 rounded-lg bg-sand-100 px-3 py-2">
           <span class="min-w-0 flex-1 truncate font-body text-[13.5px] font-extrabold text-cocoa-900">{inv.email}</span>
@@ -125,11 +78,5 @@
         </div>
       {/each}
     </div>
-  {/if}
-</div>
-
-<div class="mt-4">
-  <div class={labelClass}>Co-organizer link</div>
-  <p class="mb-2 {hintClass}">Or send this to someone you want to co-run the trip — they sign in and become an organizer. Keep it private.</p>
-  <CopyField value={ownerUrl} ariaLabel="Co-organizer link" />
-</div>
+  </div>
+{/if}

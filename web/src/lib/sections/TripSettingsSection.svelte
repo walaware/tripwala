@@ -12,6 +12,7 @@
   import TripDetailsForm from './settings/TripDetailsForm.svelte';
   import PhotoAlbum from './settings/PhotoAlbum.svelte';
   import StageSections from './settings/StageSections.svelte';
+  import TripInviteModal from './TripInviteModal.svelte';
 
   /**
    * @type {{
@@ -101,6 +102,7 @@
   // card the longest thing on the page — now the closed summaries carry the
   // state and you open only what you came for.
   let openGroup = $state('');
+  let inviteOpen = $state(false);
   /** @param {string} key */
   const toggler = (key) => (/** @type {boolean} */ open) => (openGroup = open ? key : '');
 
@@ -168,19 +170,21 @@
 
   {#if showInvite || ownerMode}
     <SettingsGroup icon="🔗" title="Invite & access" hint={inviteHint} first={!me} open={openGroup === 'invite'} onToggle={toggler('invite')}>
-      <InviteAccess
-        {shareToken} {inviteUrl} {ownerMode} {showInvite} {joinPolicy} {inviteVisibility}
-        visibility={trip.visibility || 'private'} {emailEnabled} {act}
-      />
+      <Button variant="primary" size="sm" onclick={() => (inviteOpen = true)}>＋ Invite people</Button>
+      {#if ownerMode}
+        <div class="mt-3">
+          <InviteAccess
+            {ownerMode} {joinPolicy} {inviteVisibility}
+            visibility={trip.visibility || 'private'} {act}
+          />
+        </div>
+      {/if}
     </SettingsGroup>
   {/if}
 
   {#if ownerMode}
     <SettingsGroup icon="🙌" title="People & roles" hint={peopleHint} open={openGroup === 'people'} onToggle={toggler('people')}>
-      <PeopleRoles
-        {shareToken} {ownerUrl} {members} {pending} {invites} {currentParticipantId}
-        {emailEnabled} {busy} {act}
-      />
+      <PeopleRoles {members} {pending} {invites} {currentParticipantId} {busy} {act} />
     </SettingsGroup>
 
     <SettingsGroup icon="✏️" title="Trip details" hint="Name, dates, description, safety" open={openGroup === 'details'} onToggle={toggler('details')}>
@@ -198,3 +202,18 @@
     {/if}
   {/if}
 </Card>
+
+{#if showInvite || ownerMode}
+  <TripInviteModal
+    open={inviteOpen}
+    onClose={() => (inviteOpen = false)}
+    {shareToken}
+    {inviteUrl}
+    {ownerUrl}
+    {showInvite}
+    {ownerMode}
+    {joinPolicy}
+    invitableFriends={[]}
+    {emailEnabled}
+  />
+{/if}

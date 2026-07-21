@@ -1,90 +1,30 @@
 <script>
-  import { Button, SegmentedControl, CopyField } from '@walaware/design';
-  import { inputClass, labelClass, hintClass } from './styles.js';
-  import { tripAction } from '$lib/tripClient.js';
+  import { SegmentedControl } from '@walaware/design';
+  import { labelClass, hintClass } from './styles.js';
   import { VISIBILITY_CHOICES, tripVisibility } from '$lib/visibility.js';
 
   /**
-   * Invite link, invite-by-email, and (organizers) the three access toggles.
+   * Access & privacy POLICY controls (organizers). The invite link + invite-by-
+   * email inputs moved to the "Who's in" invite modal — this group now only sets
+   * how people join, who can share, and what friends' calendars see.
    *
    * @type {{
-   *   shareToken: string,
-   *   inviteUrl: string,
    *   ownerMode: boolean,
-   *   showInvite: boolean,
    *   joinPolicy: string,
    *   inviteVisibility: string,
    *   visibility: string,
-   *   emailEnabled: boolean,
    *   act: (op: string, payload?: Record<string, unknown>, tag?: string) => Promise<void>
    * }}
    */
-  let {
-    shareToken, inviteUrl, ownerMode, showInvite, joinPolicy, inviteVisibility,
-    visibility, emailEnabled, act
-  } = $props();
+  let { ownerMode, joinPolicy, inviteVisibility, visibility, act } = $props();
 
   const visibilityHint = $derived(
     VISIBILITY_CHOICES.find((c) => c.value === tripVisibility({ visibility }))?.hint ?? ''
   );
-
-  let inviteEmail = $state('');
-  let sending = $state(false);
-  let inviteSent = $state(false);
-  let inviteError = $state('');
-  const validEmail = $derived(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(inviteEmail.trim()));
-
-  async function sendInvite() {
-    if (!validEmail || sending) return;
-    sending = true;
-    inviteError = '';
-    inviteSent = false;
-    try {
-      await tripAction(shareToken, { op: 'invite_email', email: inviteEmail.trim() });
-      inviteSent = true;
-      inviteEmail = '';
-      setTimeout(() => (inviteSent = false), 2500);
-    } catch (_) {
-      inviteError = "Couldn't send — check the address (and that email is set up).";
-    } finally {
-      sending = false;
-    }
-  }
 </script>
 
-{#if showInvite}
-  <div class="mb-1 font-body text-[12.5px] font-bold text-text-muted">
-    {joinPolicy === 'approval'
-      ? 'Anyone you send this to can request to join — an organizer approves them.'
-      : 'Anyone you send this to can join instantly.'}
-  </div>
-  <CopyField value={inviteUrl} ariaLabel="Invite link" />
-  <div class="mt-1 font-body text-[11.5px] font-bold text-text-muted">
-    This is the invite link (lets people join). The plain trip URL without it is view-only.
-  </div>
-
-  {#if emailEnabled}
-    <div class="mt-3">
-      <div class={labelClass}>Or invite by email</div>
-      <div class="flex gap-2">
-        <input
-          type="email"
-          bind:value={inviteEmail}
-          placeholder="name@email.com"
-          class="{inputClass} min-w-0 flex-1"
-          onkeydown={(e) => e.key === 'Enter' && sendInvite()}
-        />
-        <Button variant="primary" size="md" disabled={!validEmail || sending} onclick={sendInvite}>
-          {sending ? 'Sending…' : inviteSent ? 'Sent ✓' : 'Send'}
-        </Button>
-      </div>
-      {#if inviteError}<p class="mt-1 font-body text-xs font-bold text-berry-600">{inviteError}</p>{/if}
-    </div>
-  {/if}
-{/if}
-
 {#if ownerMode}
-  <div class="{showInvite ? 'mt-4' : ''} flex flex-col gap-3">
+  <div class="flex flex-col gap-3">
     <div>
       <div class={labelClass}>How people join</div>
       <SegmentedControl

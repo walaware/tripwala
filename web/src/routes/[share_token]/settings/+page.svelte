@@ -21,10 +21,6 @@
   const ownerMode = $derived(data.isOrganizer ?? false);
   const me = $derived(data.me);
 
-  const origin = $derived(page.url.origin);
-  const inviteUrl = $derived(`${origin}/${shareToken}?invite=${trip.invite_token || ''}`);
-  const ownerUrl = $derived(`${origin}/${shareToken}/edit?owner=${trip.owner_token || ''}`);
-  const showInvite = $derived(ownerMode || trip.invite_visibility === 'everyone');
   const notifyOn = $derived(me?.notify !== false);
 
   // Keep the AppShell in the trip's CONTEXTUAL mode while on Trip settings —
@@ -146,36 +142,28 @@
     </p>
   </Card>
 
-  <!-- 🔗 Access & invites -->
-  {#if showInvite || ownerMode}
-    <div class={groupLabel}>🔗 Access & invites</div>
+  <!-- 🔗 Access & privacy — policy + roles only. Inviting new people (links +
+       typeahead) lives in the trip's "Who's in" invite modal now. -->
+  {#if ownerMode}
+    <div class={groupLabel}>🔗 Access & privacy</div>
     <Card>
       <InviteAccess
-        {shareToken}
-        {inviteUrl}
         {ownerMode}
-        {showInvite}
         joinPolicy={trip.join_policy}
         inviteVisibility={trip.invite_visibility}
         visibility={trip.visibility}
-        emailEnabled={data.emailEnabled}
         {act}
       />
-      {#if ownerMode}
-        <div class="mt-4 border-t border-sand-200 pt-4">
-          <PeopleRoles
-            {shareToken}
-            {ownerUrl}
-            members={data.members}
-            pending={data.pending}
-            invites={data.invites}
-            currentParticipantId={data.currentParticipantId}
-            emailEnabled={data.emailEnabled}
-            {busy}
-            {act}
-          />
-        </div>
-      {/if}
+      <div class="mt-4 border-t border-sand-200 pt-4">
+        <PeopleRoles
+          members={data.members}
+          pending={data.pending}
+          invites={data.invites}
+          currentParticipantId={data.currentParticipantId}
+          {busy}
+          {act}
+        />
+      </div>
     </Card>
   {/if}
 

@@ -168,6 +168,9 @@
     goto(page.url.pathname, { noScroll: true, keepFocus: true });
   }
   const settingsHref = $derived(`${page.url.pathname.replace(/\/$/, '')}/settings`);
+  // Invite links for the "Who's in" invite modal.
+  const inviteUrl = $derived(`${page.url.origin}/${trip.share_token}?invite=${trip.invite_token || ''}`);
+  const ownerUrl = $derived(`${page.url.origin}/${trip.share_token}/edit?owner=${trip.owner_token || ''}`);
   const goSettings = () => goto(settingsHref);
 
   // Desktop = ≥920px (matches the shell breakpoint). Drives the hub-&-spoke swap
@@ -269,7 +272,7 @@
     {:else if focus === 'map'}
       <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'crew'}
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} onHide={null} onSettings={goSettings} />
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} joinPolicy={trip.join_policy ?? 'instant'} {inviteUrl} {ownerUrl} emailEnabled={data.emailEnabled ?? false} onHide={null} onSettings={goSettings} />
     {:else if focus === 'gear'}
       <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={null} onSettings={goSettings} />
     {:else if focus === 'food'}
