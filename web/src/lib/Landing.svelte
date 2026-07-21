@@ -85,13 +85,13 @@
           class="w-[248px] rounded-[2.6rem] bg-cocoa-900 p-2.5 sm:w-[276px]"
           style="box-shadow: 0 34px 70px -24px rgba(255,122,89,.55), 0 12px 28px -18px rgba(58,45,40,.5);"
         >
-          <div class="aspect-[9/19] overflow-hidden rounded-[2rem] bg-sand-200">
-            <img
-              src="/tripwala-trip-page.png"
-              alt="A tripwala trip page on a phone — crew, gear, food and expenses in one scroll."
-              class="h-full w-full object-cover object-top"
-              loading="lazy"
-            />
+          <!-- Screenshot slot — a tasteful placeholder until a real, accurate
+               trip-page capture exists (don't ship an inaccurate screenshot). -->
+          <div class="aspect-[9/19] overflow-hidden rounded-[2rem] bg-gradient-to-b from-sand-100 to-sand-200">
+            <div class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+              <AppIcon app="tripwala" size={46} shadow />
+              <p class="font-display text-[14px] font-bold text-text-muted">Your whole trip, one scroll</p>
+            </div>
           </div>
         </div>
       </div>
