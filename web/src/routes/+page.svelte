@@ -1,8 +1,9 @@
 <script>
-  import { Button, Wordmark, AppIcon, RequestCard } from '@walaware/design';
+  import { Button, RequestCard } from '@walaware/design';
   import { applyAction, deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import TripCard from '$lib/TripCard.svelte';
+  import Landing from '$lib/Landing.svelte';
   import { fmtDateRange } from '$lib/format.js';
 
   /** @type {{ data: import('./$types').PageData }} */
@@ -45,8 +46,8 @@
 
 <svelte:head><title>tripwala — one link, everyone's in</title></svelte:head>
 
-{#if data.user}
-  <!-- Dashboard — AppShell owns the padding + centered content column. -->
+{#if trips !== null}
+  <!-- Signed in → dashboard. AppShell owns the padding + centered content column. -->
   <div>
     <div class="flex items-start justify-between gap-3 border-b border-sand-300 pb-4">
       <div>
@@ -124,25 +125,6 @@
     {/if}
   </div>
 {:else}
-  <!-- Marketing landing — full-bleed, responsive (rendered outside the app shell). -->
-  <main
-    class="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-sand-100 to-sand-200 px-6 py-20 text-center sm:py-28"
-  >
-    <div class="mx-auto w-full max-w-2xl">
-      <div class="flex flex-col items-center gap-4">
-        <AppIcon app="tripwala" size={76} />
-        <Wordmark root="trip" size={56} />
-      </div>
-      <p class="mx-auto mt-5 max-w-xl font-body text-lg font-bold text-text-body sm:text-xl">
-        One link where the group gathers. Plan a trip, drop it in the group chat, and
-        everyone signs in to join — RSVP, grab gear, sign up for food. Private to the
-        people you invite.
-      </p>
-
-      <div class="mx-auto mt-8 flex max-w-xs flex-col items-center gap-3 sm:max-w-none sm:flex-row sm:justify-center">
-        <Button href="/new" variant="primary" size="lg" full class="sm:w-auto">Plan a trip 🎒</Button>
-        <Button href="/login" variant="ghost" size="lg" full class="sm:w-auto">Sign in →</Button>
-      </div>
-    </div>
-  </main>
+  <!-- Signed out (trips === null) → marketing landing (full-bleed, outside the shell). -->
+  <Landing />
 {/if}
