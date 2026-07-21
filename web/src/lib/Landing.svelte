@@ -48,8 +48,8 @@
         <Wordmark root="trip" size={22} />
       </a>
       <div class="ml-auto flex items-center gap-1 sm:gap-2">
-        <a href="#features" class="hidden rounded-pill px-3 py-2 font-display text-[14px] font-semibold text-text-muted transition-colors hover:text-text-strong sm:block">What it does</a>
-        <a href="#how" class="hidden rounded-pill px-3 py-2 font-display text-[14px] font-semibold text-text-muted transition-colors hover:text-text-strong sm:block">How it works</a>
+        <a href="#features" class="nav-link rounded-pill px-3 py-2 font-display text-[14px] font-semibold text-text-muted transition-colors hover:text-text-strong">What it does</a>
+        <a href="#how" class="nav-link rounded-pill px-3 py-2 font-display text-[14px] font-semibold text-text-muted transition-colors hover:text-text-strong">How it works</a>
         <Button href={LOGIN_HREF} variant="secondary" size="sm">Log in</Button>
       </div>
     </nav>
@@ -154,7 +154,7 @@
     <section class="py-8 sm:py-12">
       <div class="rounded-xl bg-primary px-6 py-14 text-center sm:px-10 sm:py-16">
         <h2 class="font-display text-[28px] font-bold leading-tight tracking-tight text-white sm:text-[36px]">
-          Your next trip starts with a link 🔥
+          Your next trip starts with <span class="whitespace-nowrap">a link 🔥</span>
         </h2>
         <p class="mx-auto mt-3 max-w-md font-body text-[16px] font-medium text-white/85">
           Make the page, share it, and let everyone pile in.
@@ -192,3 +192,14 @@
     </div>
   </footer>
 </div>
+
+<style>
+  /* Narrow nav (≤640px) = just the logo lockup + "Log in"; the anchor links
+     would crowd/wrap, and the sections stay reachable by scroll. Scoped CSS
+     media query, not a JS window-width listener. */
+  @media (max-width: 640px) {
+    .nav-link {
+      display: none;
+    }
+  }
+</style>
