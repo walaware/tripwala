@@ -1,6 +1,6 @@
 <script>
   import { invalidateAll } from '$app/navigation';
-  import { Modal, Button, CopyField } from '@walaware/design';
+  import { Modal, Button, CopyField, SegmentedControl } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import FriendTypeahead from '$lib/FriendTypeahead.svelte';
 
@@ -18,14 +18,29 @@
    *   showInvite?: boolean,
    *   ownerMode?: boolean,
    *   joinPolicy?: string,
+   *   inviteVisibility?: string,
    *   invitableFriends?: Array<{ id: string, name: string, avatar?: string }>,
    *   emailEnabled?: boolean
    * }}
    */
   let {
     open, onClose, shareToken, inviteUrl, ownerUrl, showInvite = false, ownerMode = false,
-    joinPolicy = 'instant', invitableFriends = [], emailEnabled = false
+    joinPolicy = 'instant', inviteVisibility = 'everyone', invitableFriends = [], emailEnabled = false
   } = $props();
+
+  /** @param {string} op @param {string} value */
+  async function setPolicy(op, value) {
+    if (busy) return;
+    busy = op;
+    try {
+      await tripAction(shareToken, { op, value });
+      await invalidateAll();
+    } catch (_) {
+      /* reconciled on next load */
+    } finally {
+      busy = '';
+    }
+  }
 
   let status = $state('');
   let busy = $state('');
@@ -98,6 +113,33 @@
         <div class={labelClass}>Share the invite link</div>
         <CopyField value={inviteUrl} ariaLabel="Invite link" />
         <p class="mt-1 font-body text-[12px] font-bold text-text-muted">{joinNote}</p>
+      </div>
+    {/if}
+
+    {#if ownerMode}
+      <!-- These govern the link above, so they live next to it (moved out of
+           Trip settings). -->
+      <div>
+        <div class={labelClass}>How people join</div>
+        <SegmentedControl
+          options={[
+            { value: 'instant', label: 'Instant' },
+            { value: 'approval', label: 'Request to join' }
+          ]}
+          value={joinPolicy === 'approval' ? 'approval' : 'instant'}
+          onChange={(v) => setPolicy('set_join_policy', v)}
+        />
+      </div>
+      <div>
+        <div class={labelClass}>Who can invite &amp; share</div>
+        <SegmentedControl
+          options={[
+            { value: 'everyone', label: 'Everyone' },
+            { value: 'organizers', label: 'Organizers only' }
+          ]}
+          value={inviteVisibility === 'organizers' ? 'organizers' : 'everyone'}
+          onChange={(v) => setPolicy('set_invite_visibility', v)}
+        />
       </div>
     {/if}
 

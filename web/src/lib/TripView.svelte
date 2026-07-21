@@ -1,10 +1,14 @@
 <script>
   import { onMount } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
+  import { enhance } from '$app/forms';
   import { page } from '$app/state';
+  import { Modal } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import { fmtDateRange, tripEmoji } from '$lib/format.js';
   import { useShell } from '$lib/shell.svelte.js';
+  import TripDetailsForm from '$lib/sections/settings/TripDetailsForm.svelte';
+  import PhotoAlbum from '$lib/sections/settings/PhotoAlbum.svelte';
 
   // Full section components — reused verbatim as the focused ("spoke") views.
   import ItinerarySection from '$lib/sections/ItinerarySection.svelte';
@@ -202,6 +206,60 @@
     { icon: '🤔', label: 'Something to decide', onClick: () => setFocus('itinerary') }
   ];
 
+  // ── Trip-level manage actions (header ⋯ menu) ──────────────────────────────
+  // Edit details / clone / move-to-ideas / photo album / leave — moved out of
+  // Trip settings' "Manage" group into the header, next to ＋ Add.
+  let editOpen = $state(false);
+  let photosOpen = $state(false);
+  let manageBusy = $state('');
+  let savedFlash = $state(false);
+  let cloning = $state(false);
+  /** @type {HTMLFormElement | undefined} */
+  let cloneForm = $state();
+
+  /** @param {string} op @param {Record<string, unknown>} payload @param {string} [tag] */
+  async function manageAct(op, payload = {}, tag = op) {
+    if (manageBusy) return;
+    manageBusy = tag;
+    try {
+      await tripAction(trip.share_token, { op, ...payload });
+      await invalidateAll();
+      if (op === 'trip_update') {
+        savedFlash = true;
+        setTimeout(() => (savedFlash = false), 1500);
+      }
+    } catch (_) {
+      /* reconciled on next load */
+    } finally {
+      manageBusy = '';
+    }
+  }
+
+  async function demoteToIdea() {
+    if (manageBusy) return;
+    if (!confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
+    await manageAct('demote_to_idea', {}, 'demote');
+  }
+  async function leaveTrip() {
+    if (manageBusy) return;
+    if (!confirm('Leave this trip? You can re-join later from the invite link.')) return;
+    manageBusy = 'leave';
+    try {
+      await tripAction(trip.share_token, { op: 'leave_trip' });
+      await goto('/');
+    } catch (_) {
+      manageBusy = '';
+    }
+  }
+
+  const manageActions = $derived([
+    ...(ownerMode ? [{ icon: '✏️', label: 'Edit trip details', onClick: () => { editOpen = true; } }] : []),
+    { icon: '📋', label: 'Clone this trip', onClick: () => { cloneForm?.requestSubmit(); } },
+    ...(ownerMode && trip.status !== 'idea' ? [{ icon: '💭', label: 'Move back to Ideas', onClick: demoteToIdea }] : []),
+    ...(ownerMode ? [{ icon: '📷', label: 'Photo album', onClick: () => { photosOpen = true; } }] : []),
+    { icon: '🚪', label: 'Leave this trip', onClick: leaveTrip, danger: true }
+  ]);
+
   // Organizer hides a section from its ⋯ menu (restore from Trip settings).
   /** @param {string} key */
   async function hideSection(key) {
@@ -272,7 +330,7 @@
     {:else if focus === 'map'}
       <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'crew'}
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} joinPolicy={trip.join_policy ?? 'instant'} {inviteUrl} {ownerUrl} emailEnabled={data.emailEnabled ?? false} onHide={null} onSettings={goSettings} />
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} joinPolicy={trip.join_policy ?? 'instant'} {inviteUrl} {ownerUrl} emailEnabled={data.emailEnabled ?? false} members={data.members ?? []} pending={data.pending ?? []} invites={data.invites ?? []} onHide={null} onSettings={goSettings} />
     {:else if focus === 'gear'}
       <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={null} onSettings={goSettings} />
     {:else if focus === 'food'}
@@ -287,7 +345,7 @@
   </div>
 {:else if isMobile}
   <!-- Mobile hub & spoke: trip home is a status list; a tap opens a module. -->
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} />
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} {manageActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -309,7 +367,7 @@
     {/if}
   </div>
 {:else}
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} />
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} {manageActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -385,6 +443,30 @@
     {/if}
   </div>
 {/if}
+
+<!-- Trip-level manage surfaces reached from the header ⋯ menu. -->
+{#if ownerMode}
+  <Modal open={editOpen} onClose={() => (editOpen = false)} title="Edit trip details" size="md">
+    <TripDetailsForm {trip} busy={manageBusy} {savedFlash} act={manageAct} />
+  </Modal>
+  <Modal open={photosOpen} onClose={() => (photosOpen = false)} title="Photo album" size="sm">
+    <PhotoAlbum shareToken={trip.share_token} {trip} immichEnabled={data.immichEnabled ?? false} />
+  </Modal>
+{/if}
+<!-- Clone posts to the trip route's ?/clone action, then redirects to the copy. -->
+<form
+  bind:this={cloneForm}
+  method="POST"
+  action="?/clone"
+  class="hidden"
+  use:enhance={() => {
+    cloning = true;
+    return async ({ update }) => {
+      await update();
+      cloning = false;
+    };
+  }}
+></form>
 
 <style>
   .trip-stack {

@@ -4,6 +4,7 @@
   import { Card, Avatar, SegmentedControl, LeanMeter, Chip, Button } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import TripInviteModal from '$lib/sections/TripInviteModal.svelte';
+  import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
 
   // LeanMeter's `lean` prop is a 1|2|3 union; narrow the raw number to it.
   /** @param {number} n @returns {1 | 2 | 3} */
@@ -25,18 +26,39 @@
    *   joinPolicy?: string,
    *   inviteUrl?: string,
    *   ownerUrl?: string,
-   *   emailEnabled?: boolean
+   *   emailEnabled?: boolean,
+   *   members?: Array<{ id: string, display_name: string, role: string }>,
+   *   pending?: Array<{ id: string, display_name: string, avatar?: string }>,
+   *   invites?: Array<{ id: string, email: string, role: string }>
    * }}
    */
   let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null,
     onSettings = null, collapsed = false, onToggle = null, isPast = false, invitableFriends = [],
-    inviteVisibility = 'everyone', joinPolicy = 'instant', inviteUrl = '', ownerUrl = '', emailEnabled = false } = $props();
+    inviteVisibility = 'everyone', joinPolicy = 'instant', inviteUrl = '', ownerUrl = '', emailEnabled = false,
+    members = [], pending = [], invites = [] } = $props();
 
   // Inviting is a one-tap action from this header (the ＋ button → a Modal),
   // allowed for everyone unless the trip restricts invites to organizers.
   const canInvite = $derived(!isPast && (ownerMode || inviteVisibility !== 'organizers'));
   const showInvite = $derived(ownerMode || inviteVisibility === 'everyone');
   let inviteOpen = $state(false);
+
+  // Roles management (organizers) lives here on the people surface now — moved
+  // out of Trip settings. Uses the shared tripAction op endpoint.
+  let rolesBusy = $state('');
+  /** @param {string} op @param {Record<string, unknown>} payload @param {string} [tag] */
+  async function act(op, payload = {}, tag = op) {
+    if (rolesBusy) return;
+    rolesBusy = tag;
+    try {
+      await tripAction(shareToken, { op, ...payload });
+      await invalidateAll();
+    } catch (_) {
+      /* reconciled on next load */
+    } finally {
+      rolesBusy = '';
+    }
+  }
 
   /** @type {Record<string, string>} */
   const statusEmoji = { going: '🔥', maybe: '🤔', out: '💤' };
@@ -264,6 +286,15 @@
   </div>
 </Card>
 
+{#if ownerMode && !isPast}
+  <!-- Roles management (approve/deny, make organizer/guest, remove, revoke
+       invites) — moved here from Trip settings. -->
+  <Card class="mt-3">
+    <div class="mb-2 font-display text-[15px] font-bold text-text-strong">Members &amp; roles</div>
+    <PeopleRoles {members} {pending} {invites} {currentParticipantId} busy={rolesBusy} {act} />
+  </Card>
+{/if}
+
 {#if canInvite}
   <TripInviteModal
     open={inviteOpen}
@@ -274,6 +305,7 @@
     {showInvite}
     {ownerMode}
     {joinPolicy}
+    {inviteVisibility}
     {invitableFriends}
     {emailEnabled}
   />

@@ -1,17 +1,12 @@
 <script>
   import { goto, invalidateAll } from '$app/navigation';
-  import { enhance } from '$app/forms';
-  import { page } from '$app/state';
-  import { Card, Button, Switch } from '@walaware/design';
+  import { Card, Switch } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import { useShell } from '$lib/shell.svelte.js';
   import { tripSectionNav } from '$lib/tripSections.js';
   import { tripEmoji } from '$lib/format.js';
   import SettingRow from '$lib/sections/settings/SettingRow.svelte';
   import InviteAccess from '$lib/sections/settings/InviteAccess.svelte';
-  import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
-  import TripDetailsForm from '$lib/sections/settings/TripDetailsForm.svelte';
-  import PhotoAlbum from '$lib/sections/settings/PhotoAlbum.svelte';
 
   /** @type {{ data: any }} */
   let { data } = $props();
@@ -64,10 +59,6 @@
   const hidden = $derived(new Set(trip.hidden_sections ?? []));
 
   let busy = $state('');
-  let savedFlash = $state(false);
-  let editingDetails = $state(false);
-  let managingPhotos = $state(false);
-  let cloning = $state(false);
 
   /** @param {string} op @param {Record<string, unknown>} payload @param {string} [tag] */
   async function act(op, payload = {}, tag = op) {
@@ -76,10 +67,6 @@
     try {
       await tripAction(shareToken, { op, ...payload });
       await invalidateAll();
-      if (op === 'trip_update') {
-        savedFlash = true;
-        setTimeout(() => (savedFlash = false), 1500);
-      }
     } catch (_) {
       /* reconciled on next load */
     } finally {
@@ -90,26 +77,6 @@
   /** @param {string} key @param {boolean} isHidden */
   const toggleSection = (key, isHidden) =>
     act(isHidden ? 'section_show' : 'section_hide', { key }, 'sec-' + key);
-
-  async function leave() {
-    if (busy) return;
-    if (!confirm('Leave this trip? You can re-join later from the invite link.')) return;
-    busy = 'leave';
-    try {
-      await tripAction(shareToken, { op: 'leave_trip' });
-      await goto('/');
-    } catch (_) {
-      busy = '';
-    }
-  }
-
-  // Move the trip back to the Ideas wishlist (status='idea') — reversible via
-  // "promote" on the Ideas page. Organizer-only, shown when the trip is dated.
-  async function demoteToIdea() {
-    if (busy) return;
-    if (!confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
-    await act('demote_to_idea', {}, 'demote');
-  }
 
   const groupLabel = 'mb-2 mt-6 px-1 font-body text-[11px] font-extrabold uppercase tracking-wide text-text-muted';
 </script>
@@ -142,31 +109,6 @@
     </p>
   </Card>
 
-  <!-- 🔗 Access & privacy — policy + roles only. Inviting new people (links +
-       typeahead) lives in the trip's "Who's in" invite modal now. -->
-  {#if ownerMode}
-    <div class={groupLabel}>🔗 Access & privacy</div>
-    <Card>
-      <InviteAccess
-        {ownerMode}
-        joinPolicy={trip.join_policy}
-        inviteVisibility={trip.invite_visibility}
-        visibility={trip.visibility}
-        {act}
-      />
-      <div class="mt-4 border-t border-sand-200 pt-4">
-        <PeopleRoles
-          members={data.members}
-          pending={data.pending}
-          invites={data.invites}
-          currentParticipantId={data.currentParticipantId}
-          {busy}
-          {act}
-        />
-      </div>
-    </Card>
-  {/if}
-
   <!-- 🔔 Your notifications -->
   <div class={groupLabel}>🔔 Your notifications</div>
   <Card>
@@ -182,70 +124,14 @@
     </SettingRow>
   </Card>
 
-  <!-- 🧰 Manage -->
-  <div class={groupLabel}>🧰 Manage</div>
-  <Card>
-    {#if ownerMode}
-      <SettingRow icon="✏️" title="Trip details" desc="Name, dates, description, safety" first>
-        {#snippet control()}
-          <Button variant="ghost" size="sm" onclick={() => (editingDetails = !editingDetails)}>
-            {editingDetails ? 'Close' : 'Edit'}
-          </Button>
-        {/snippet}
-      </SettingRow>
-      {#if editingDetails}
-        <div class="mb-1 border-t border-sand-200 pt-3">
-          <TripDetailsForm {trip} {busy} {savedFlash} {act} />
-        </div>
-      {/if}
-
-      <SettingRow icon="📷" title="Photo album" desc={(trip.immich_album_url || '').trim() ? 'Shared album linked' : 'No album yet'}>
-        {#snippet control()}
-          <Button variant="ghost" size="sm" onclick={() => (managingPhotos = !managingPhotos)}>
-            {managingPhotos ? 'Close' : 'Manage'}
-          </Button>
-        {/snippet}
-      </SettingRow>
-      {#if managingPhotos}
-        <div class="mb-1 border-t border-sand-200 pt-3">
-          <PhotoAlbum {shareToken} {trip} immichEnabled={data.immichEnabled} />
-        </div>
-      {/if}
-
-      {#if trip.status !== 'idea'}
-        <SettingRow icon="💭" title="Move back to Ideas" desc="Keeps everything — just leaves the calendar">
-          {#snippet control()}
-            <Button variant="ghost" size="sm" disabled={busy === 'demote'} onclick={demoteToIdea}>
-              {busy === 'demote' ? 'Moving…' : 'Move back'}
-            </Button>
-          {/snippet}
-        </SettingRow>
-      {/if}
-    {/if}
-
-    <!-- Clone: copy this trip's gear/packing/meals into a new planning trip you own. -->
-    <form
-      method="POST"
-      action="?/clone"
-      use:enhance={() => {
-        cloning = true;
-        return async ({ update }) => {
-          await update();
-          cloning = false;
-        };
-      }}
-    >
-      <SettingRow icon="📋" title="Clone this trip" desc="Copy the gear, packing & meals into a new trip" first={!ownerMode}>
-        {#snippet control()}
-          <Button type="submit" variant="soft" size="sm" disabled={cloning}>{cloning ? 'Cloning…' : 'Make a copy'}</Button>
-        {/snippet}
-      </SettingRow>
-    </form>
-
-    <SettingRow icon="🚪" title="Leave this trip" desc="You'll stop getting updates">
-      {#snippet control()}
-        <Button variant="ghost" size="sm" disabled={busy === 'leave'} onclick={leave}>Leave</Button>
-      {/snippet}
-    </SettingRow>
-  </Card>
+  <!-- 🔒 Friends'-calendar privacy — the only access control that stays here;
+       join/share policy live in the invite modal, roles under "Who's in", and
+       trip actions (edit/clone/leave/…) in the trip-header ⋯ menu. -->
+  {#if ownerMode}
+    <div class={groupLabel}>🔒 Friends' calendars</div>
+    <Card>
+      <div class="mb-1.5 font-body text-[13px] font-extrabold text-text-strong">What friends see on their calendar</div>
+      <InviteAccess {ownerMode} visibility={trip.visibility} {act} />
+    </Card>
+  {/if}
 </div>

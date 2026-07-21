@@ -16,10 +16,11 @@
    *   meta: string,
    *   isPast?: boolean,
    *   crew?: Array<{ id: string, display_name: string, avatar?: string }>,
-   *   addActions: Array<{ icon?: string, label: string, onClick?: () => void }>
+   *   addActions: Array<{ icon?: string, label: string, onClick?: () => void }>,
+   *   manageActions?: Array<{ icon?: string, label: string, onClick?: () => void, danger?: boolean }>
    * }}
    */
-  let { emoji, name, meta, isPast = false, crew = [], addActions } = $props();
+  let { emoji, name, meta, isPast = false, crew = [], addActions, manageActions = [] } = $props();
 
   const shown = $derived(crew.slice(0, 6));
   const extra = $derived(Math.max(0, crew.length - shown.length));
@@ -61,6 +62,10 @@
         <Button variant="primary" size="sm" onclick={toggle}>＋ Add</Button>
       {/snippet}
     </OverflowMenu>
+
+    {#if manageActions.length}
+      <OverflowMenu actions={manageActions} label="Manage this trip" align="end" triggerLabel="Manage this trip" />
+    {/if}
   </div>
 </header>
 

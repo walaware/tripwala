@@ -173,10 +173,8 @@
       <Button variant="primary" size="sm" onclick={() => (inviteOpen = true)}>＋ Invite people</Button>
       {#if ownerMode}
         <div class="mt-3">
-          <InviteAccess
-            {ownerMode} {joinPolicy} {inviteVisibility}
-            visibility={trip.visibility || 'private'} {act}
-          />
+          <div class="mb-1.5 font-body text-[12.5px] font-extrabold text-text-muted">What friends see on their calendar</div>
+          <InviteAccess {ownerMode} visibility={trip.visibility || 'private'} {act} />
         </div>
       {/if}
     </SettingsGroup>
@@ -213,6 +211,7 @@
     {showInvite}
     {ownerMode}
     {joinPolicy}
+    {inviteVisibility}
     invitableFriends={[]}
     {emailEnabled}
   />
