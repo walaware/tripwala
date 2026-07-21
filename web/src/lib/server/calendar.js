@@ -32,7 +32,7 @@ const dateOnly = (/** @type {string | undefined | null} */ d) => String(d ?? '')
  * @property {string} end_date
  * @property {string} location '' when busy
  * @property {boolean} busy dates-only tier — render as an anonymous band
- * @property {Array<{ name: string, avatar?: string }>} friends which of my friends are on it
+ * @property {Array<{ id: string, name: string, avatar?: string }>} friends which of my friends are on it
  */
 
 /**
@@ -102,7 +102,7 @@ export async function loadFriendsCalendar(pb, userId) {
     }
     if (set.has(u.id)) continue;
     set.add(u.id);
-    teaser.friends.push({ name: displayName(u.name || '', u), avatar: avatarUrl(u) });
+    teaser.friends.push({ id: u.id, name: displayName(u.name || '', u), avatar: avatarUrl(u) });
   }
 
   return [...byId.values()].sort((a, b) =>

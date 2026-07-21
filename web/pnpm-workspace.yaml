@@ -8,11 +8,11 @@
 #
 # The key must be the exact resolution — pnpm rejects both a bare name and a
 # `@*` wildcard ("Use exact versions only"). That means the commit sha below is
-# pinned to design v0.10.1 and MUST be updated whenever the dep is bumped, or the
+# pinned to design v0.12.0 and MUST be updated whenever the dep is bumped, or the
 # install breaks. Copy the replacement key out of pnpm's own error message.
 #
 # esbuild's postinstall fetches its platform-native binary; vite's build is dead
 # without it. Its key is version-pinned for the same reason.
 allowBuilds:
-  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/fa0350ad82abaeb3cd688406136ef5308b2c1d1b': true
+  '@walaware/design@https://codeload.github.com/walaware/design/tar.gz/663cbfebeb8527dda9414931a06e02d8b7faaca5': true
   'esbuild@0.25.12': true
