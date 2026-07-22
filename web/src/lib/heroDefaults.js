@@ -22,17 +22,41 @@
 // Keep it out of anything that needs to run under plain node — the pure
 // precedence logic lives in $lib/tripHero.js for exactly that reason.
 
-/** @type {Record<string, string>} */
-const DEFAULTS = Object.fromEntries(
-  Object.entries(
-    /** @type {Record<string, string>} */ (
-      import.meta.glob('./assets/hero/*.{webp,jpg,jpeg,png,avif}', {
-        eager: true,
-        query: '?url',
-        import: 'default'
-      })
-    )
-  ).map(([path, url]) => [(path.split('/').pop() || '').replace(/\.[^.]+$/, ''), url])
+/** @param {Record<string, string>} mods */
+const byType = (mods) =>
+  Object.fromEntries(
+    Object.entries(mods).map(([path, url]) => [
+      (path.split('/').pop() || '').replace(/\.[^.]+$/, ''),
+      url
+    ])
+  );
+
+/** Full-frame artwork — used by the dashboard card wash. */
+const DEFAULTS = byType(
+  /** @type {Record<string, string>} */ (
+    import.meta.glob('./assets/hero/*.{webp,jpg,jpeg,png,avif}', {
+      eager: true,
+      query: '?url',
+      import: 'default'
+    })
+  )
+);
+
+/**
+ * Banner-shaped crops, generated from the full artwork by
+ * `node scripts/build-hero-banners.mjs`. The trip banner is roughly 9:1 while
+ * the source art is about 2.4:1 — dropping one into the other shows barely a
+ * quarter of the image and slices through the middle of the composition. These
+ * pre-cut bands avoid that. Run the script after adding or regenerating art.
+ */
+const BANNERS = byType(
+  /** @type {Record<string, string>} */ (
+    import.meta.glob('./assets/hero/banner/*.{webp,jpg,jpeg,png,avif}', {
+      eager: true,
+      query: '?url',
+      import: 'default'
+    })
+  )
 );
 
 /**
@@ -45,6 +69,19 @@ const DEFAULTS = Object.fromEntries(
 export function heroDefaultSrc(tripType) {
   const t = String(tripType ?? '').trim();
   return DEFAULTS[t] || DEFAULTS.other || '';
+}
+
+/**
+ * The banner-shaped default for a trip type. Falls back to the full-frame image
+ * when no crop has been generated, so a missing build step degrades to the old
+ * (over-cropped) behaviour rather than to nothing at all.
+ *
+ * @param {string | null | undefined} tripType
+ * @returns {string}
+ */
+export function heroBannerSrc(tripType) {
+  const t = String(tripType ?? '').trim();
+  return BANNERS[t] || BANNERS.other || heroDefaultSrc(t);
 }
 
 /** Whether any generated artwork has been added yet. */
