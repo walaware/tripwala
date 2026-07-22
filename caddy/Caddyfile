@@ -41,6 +41,16 @@
 		reverse_proxy {$PB_UPSTREAM:pocketbase:8090}
 	}
 
+	# Personal API keys (walaware API Access, "Personal keys"): the ONLY app-data
+	# API on the public edge, and it is SvelteKit-served — the app server reuses its
+	# own per-user/per-role authz so a key can't exceed its owner. It goes to
+	# WEB_UPSTREAM, NOT PocketBase. More specific than /api/* below, so Caddy matches
+	# it first; /api/collections/* and /_/ stay 404 here (only the curated door
+	# opens). The tailnet :8091 site keeps its own /api/x/*→PB block for service tokens.
+	handle /api/x/* {
+		reverse_proxy {$WEB_UPSTREAM:web:3000}
+	}
+
 	# Everything else on PocketBase: not public. 404 rather than 403 so the
 	# endpoints don't advertise that a PocketBase lives behind here.
 	handle /api/* {

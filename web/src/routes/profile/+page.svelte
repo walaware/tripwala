@@ -268,6 +268,21 @@
     </Card>
   </div>
 
+  <!-- Developer: personal API keys for scripts / AI agents. -->
+  <div class="mt-4">
+    <Card>
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="font-display text-[15px] font-bold text-text-strong">🔑 API keys</div>
+          <div class="font-body text-[12.5px] font-bold text-text-muted">
+            Personal keys to reach your trips from a script or AI agent
+          </div>
+        </div>
+        <Button href="/settings/api-keys" variant="soft" size="sm">Manage</Button>
+      </div>
+    </Card>
+  </div>
+
   {#if data.isAdmin}
     <!-- Instance admin: link to app-wide settings (Immich, etc.). -->
     <div class="mt-4">

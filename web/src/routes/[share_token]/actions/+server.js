@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
-import { getMembership } from '$lib/server/membership.js';
+import { loadTripByShareToken, requireActiveMembership, assertInTrip } from '$lib/server/tripAuthz.js';
 import { isMailConfigured, sendInviteEmail } from '$lib/server/mailer.js';
 import { immichConfigured, createTripAlbum, syncAlbumName, parseShareLink } from '$lib/server/immich.js';
 import { inviteFriendToTrip } from '$lib/server/invitations.js';
@@ -22,32 +22,17 @@ export async function POST({ params, request, locals, url }) {
 
   const pb = await superuserPb();
 
-  /** @type {any} */
-  let trip;
-  try {
-    trip = await pb
-      .collection('trips')
-      .getFirstListItem(pb.filter('share_token = {:t}', { t: params.share_token }));
-  } catch (/** @type {any} */ e) {
-    throw error(404, 'Trip not found');
-  }
-
-  const me = /** @type {any} */ (await getMembership(pb, trip.id, locals.user.id));
-  if (!me) throw error(403, 'Join this trip before making changes');
-  // A pending (unapproved) link-join can't see or act on the trip yet. They can
-  // still withdraw via the route's ?/withdraw action.
-  if (me.status === 'pending') throw error(403, 'Your request to join is awaiting approval');
-  const isOrganizer = me.role === 'organizer';
+  // Trip resolution + membership/role checks are shared with the personal-key API
+  // (see $lib/server/tripAuthz.js) so a headless key can never exceed the UI.
+  const trip = /** @type {any} */ (await loadTripByShareToken(pb, params.share_token));
+  const { me, isOrganizer } = await requireActiveMembership(pb, trip, locals.user.id);
 
   const body = await request.json().catch(() => ({}));
   const op = String(body.op ?? '');
 
   /** Fetch a row and assert it belongs to this trip (via its `trip` field). */
-  async function inTrip(/** @type {string} */ coll, /** @type {string} */ id) {
-    const rec = await pb.collection(coll).getOne(id);
-    if (rec.trip !== trip.id) throw error(403, 'That item is not part of this trip');
-    return rec;
-  }
+  const inTrip = (/** @type {string} */ coll, /** @type {string} */ id) =>
+    assertInTrip(pb, trip, coll, id);
 
   /**
    * The participant an op acts on. Defaults to the signed-in member; an explicit

@@ -67,6 +67,18 @@ function requireActive(e) {
     e.app.logger().warn('api.x inactive client rejected', 'client', e.auth ? e.auth.id : null);
     throw new ApiError(403, 'client is inactive');
   }
+  // A "personal key" is a `user`-bound api_clients record (walaware API Access,
+  // "Personal keys"). It is served ONLY by the SvelteKit app server (public edge),
+  // which CONFINES it to its owner (per-user reads, per-role writes). This hook is
+  // the WHOLE-APP service-token surface — the same record here would get unconfined
+  // access to every user's data, a confused-deputy escalation. The two modes share
+  // one collection, so reject `user`-bound tokens here: this surface is service
+  // tokens only (`user` unset). See web/src/lib/server/apiKeys.js:authenticatePersonalKey
+  // for the mirror check that rejects service tokens on the personal surface.
+  if (e.auth.getString('user')) {
+    e.app.logger().warn('api.x personal key rejected on service surface', 'client', e.auth.id);
+    throw new ApiError(403, 'personal keys are not valid on this surface');
+  }
 }
 
 /** Reject the request unless the authed client is active AND holds `scope`. */
