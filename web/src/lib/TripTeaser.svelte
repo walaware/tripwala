@@ -7,7 +7,7 @@
   /**
    * @type {{
    *   trip: { name: string, location?: string, start_date?: string, end_date?: string, descriptionPreview?: string, share_token: string },
-   *   mode: 'signin' | 'join' | 'pending',
+   *   mode: 'join' | 'pending',
    *   orphans?: Array<{ id: string, display_name: string }>,
    *   canJoin?: boolean,
    *   inviteToken?: string,
@@ -16,10 +16,6 @@
    */
   let { trip, mode, orphans = [], canJoin = false, inviteToken = '', form = null } = $props();
 
-  // Preserve the invite token through sign-in so an invited-but-signed-out guest
-  // lands back on the invite link (with join capability), not the view-only page.
-  const nextPath = $derived('/' + trip.share_token + (inviteToken ? `?invite=${inviteToken}` : ''));
-  const loginHref = $derived(`/login?next=${encodeURIComponent(nextPath)}`);
   let joining = $state(false);
   let claiming = $state('');
 </script>
@@ -44,12 +40,7 @@
       {/if}
 
       <div class="mt-6">
-        {#if mode === 'signin'}
-          <Button href={loginHref} variant="primary" size="lg" full>Sign in to join →</Button>
-          <p class="mt-3 font-body text-xs font-bold text-cocoa-500">
-            tripwala uses accounts so only invited guests see the details — photos, who's coming, and more.
-          </p>
-        {:else if mode === 'pending'}
+        {#if mode === 'pending'}
           <div class="rounded-xl bg-sun-100 px-4 py-3 font-body text-[13.5px] font-bold leading-relaxed text-cocoa-700">
             Your request to join is in — an organizer needs to approve you before the trip details unlock. Check back soon.
           </div>

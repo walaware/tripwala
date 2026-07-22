@@ -12,5 +12,7 @@ import { safeNext } from '$lib/server/authFlow.js';
 export function load({ locals, url }) {
   const next = safeNext(url.searchParams.get('next'));
   if (locals.user) throw redirect(303, next);
-  return { next, oauthError: url.searchParams.get('error') === 'oauth' };
+  // `from=trip` means they followed a (private) trip link while signed out — show
+  // trip-focused copy so the sign-in gate reads as a step toward the trip, not a wall.
+  return { next, fromTrip: url.searchParams.get('from') === 'trip', oauthError: url.searchParams.get('error') === 'oauth' };
 }

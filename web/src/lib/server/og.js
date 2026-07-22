@@ -80,6 +80,23 @@ async function ogImageRef(pb, trip) {
 }
 
 /**
+ * A deliberately-sparse Open Graph payload for signed-out link-preview crawlers.
+ * Trip pages are private, so a bot only ever gets the trip's name (or a generic
+ * title) — never the location, dates, description, or hero photo that `tripOg`
+ * exposes to signed-in members.
+ * @param {any} trip a trips record
+ * @param {string} origin the public origin (from the request URL)
+ * @returns {{ title: string, description: string, url: string, image?: string }}
+ */
+export function crawlerOg(trip, origin) {
+  return {
+    title: trip.name || 'An adventure on tripwala',
+    description: "You've been invited to a trip on tripwala. Sign in to see the plan.",
+    url: `${origin}/${trip.share_token}`
+  };
+}
+
+/**
  * Assemble the full Open Graph payload the page head renders.
  * @param {import('pocketbase').default} pb superuser client
  * @param {any} trip a trips record

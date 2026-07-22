@@ -5,7 +5,8 @@ import { getMembership, joinTrip, listOrphans, listPending, listInvites, claimPa
 import { isMailConfigured } from '$lib/server/mailer.js';
 import { immichConfigured } from '$lib/server/immich.js';
 import { tripTeaser } from '$lib/server/teaser.js';
-import { tripOg } from '$lib/server/og.js';
+import { tripOg, crawlerOg } from '$lib/server/og.js';
+import { isCrawler } from '$lib/server/crawler.js';
 import { loadPlanning } from '$lib/server/planning.js';
 import { cloneTrip } from '$lib/server/cloneTrip.js';
 import { listInvitableFriends } from '$lib/server/invitations.js';
@@ -49,19 +50,28 @@ function filterClaimable(orphans, userName) {
   });
 }
 
-export async function load({ params, locals, url }) {
+export async function load({ params, locals, url, request }) {
   const pb = await superuserPb();
   const trip = await fetchTrip(pb, params.share_token);
 
-  // Link-preview metadata. Computed from the public trip row so it's identical
-  // for crawlers (always unauthenticated) and members; rendered in the page head.
-  const og = await tripOg(pb, trip, url.origin);
-
-  // Not signed in → public teaser only (name + short description). Carry any
-  // invite token forward so it survives the sign-in round-trip (#2).
+  // Not signed in → trip links are private now that view-only sharing and joining
+  // are split (#2). A link-preview crawler can't sign in, so hand it a sparse,
+  // generic unfurl (trip name only, no details) instead of an ugly login redirect.
+  // A real person gets sent to sign in, carrying the trip (and any invite token)
+  // as `next` so we land them right back here; the check below then decides what
+  // they see.
   if (!locals.user) {
-    return { teaser: true, inviteToken: url.searchParams.get('invite') ?? '', trip: tripTeaser(trip), og };
+    if (isCrawler(request.headers.get('user-agent'))) {
+      return { crawler: true, og: crawlerOg(trip, url.origin) };
+    }
+    const invite = url.searchParams.get('invite');
+    const dest = '/' + params.share_token + (invite ? `?invite=${encodeURIComponent(invite)}` : '');
+    throw redirect(303, `/login?from=trip&next=${encodeURIComponent(dest)}`);
   }
+
+  // Link-preview metadata. Computed from the trip row so it's identical for every
+  // signed-in viewer; rendered in the page head.
+  const og = await tripOg(pb, trip, url.origin);
 
   // Signed in but not a member → teaser. Joining now requires the invite link
   // (its `?invite=` carries the trip's invite_token) or a direct invitation

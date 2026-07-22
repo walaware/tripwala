@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.trip?.name ?? 'tripwala'} — tripwala</title>
+  <title>{data.trip?.name ?? data.og?.title ?? 'tripwala'} — tripwala</title>
   {#if data.og}
     <meta name="description" content={data.og.description} />
     <meta property="og:type" content="website" />
@@ -29,8 +29,19 @@
   {/if}
 </svelte:head>
 
-{#if data.teaser}
-  <TripTeaser trip={data.trip} mode="signin" inviteToken={data.inviteToken ?? ''} />
+{#if data.crawler}
+  <!-- Only reached by link-preview bots (humans are redirected to sign in). The
+       OG tags in the head are what they consume; this body is a graceful fallback. -->
+  <div class="min-h-full">
+    <div class="mx-auto max-w-md px-4 py-12 text-center sm:px-6">
+      <div class="rounded-xl bg-white p-[22px] shadow-pop">
+        <div class="text-[40px] leading-none">🧭</div>
+        <h1 class="mt-2 font-display text-xl font-bold text-cocoa-900">{data.og?.title ?? 'tripwala'}</h1>
+        <p class="mt-1 font-body text-[13px] font-bold text-cocoa-500">This trip is private — sign in to see the plan.</p>
+        <a href="/login?from=trip" class="mt-4 inline-block font-body text-[13px] font-extrabold text-coral-600">Sign in →</a>
+      </div>
+    </div>
+  </div>
 {:else if data.invite}
   <TripTeaser
     trip={data.trip}
