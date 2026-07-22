@@ -56,11 +56,23 @@
 </div>
 <p class="mt-2 font-body text-[11.5px] font-bold text-cocoa-400">Name-only guests (not signed in) appear on the trip, not here.</p>
 
+<div class="mt-4">
+  <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400">
+    Invited, waiting to hear back ({invites.length + tripInvitations.length})
+  </div>
+
+  {#if !invites.length && !tripInvitations.length}
+    <!-- Always render the heading, even at zero. An empty list that removes its
+         own section is indistinguishable from a broken feature. -->
+    <p class="mt-1.5 font-body text-[12.5px] font-bold text-cocoa-400">
+      Nobody's waiting on an answer. Invites you send from here will show up in
+      this list until they join.
+    </p>
+  {/if}
+</div>
+
 {#if invites.length || tripInvitations.length}
-  <div class="mt-4">
-    <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400">
-      Invited, waiting to hear back ({invites.length + tripInvitations.length})
-    </div>
+  <div class="-mt-1">
     <div class="mt-1.5 flex flex-col gap-1.5">
       <!-- Email invites: an address only, so they get a resend (the usual reason
            one goes quiet is that it landed in spam). -->

@@ -160,21 +160,6 @@
     </Card>
   {/if}
 
-  <!-- 🙌 People — the crew's own home: statuses, roles, and outstanding invites -->
-  <div class={groupLabel}>🙌 People</div>
-  <Card>
-    <a href="/{shareToken}/people" class="flex items-center gap-3 py-1">
-      <span class="text-[20px]">🙌</span>
-      <span class="min-w-0 flex-1">
-        <span class="block font-body text-[14px] font-extrabold text-text-strong">Who's coming</span>
-        <span class="block font-body text-[12.5px] font-bold text-text-muted">
-          {ownerMode ? 'RSVPs, roles and who still owes an answer' : 'RSVPs and the crew'}
-        </span>
-      </span>
-      <span class="font-body text-[15px] font-extrabold text-coral-600">→</span>
-    </a>
-  </Card>
-
   <!-- 🔔 Your notifications -->
   <div class={groupLabel}>🔔 Your notifications</div>
   <Card>

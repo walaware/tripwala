@@ -420,7 +420,7 @@
         {#each visibleRail as r (r.key)}
           <RailModule emoji={r.emoji} title={r.title} id={r.key} {ownerMode} onHide={hideHandler(r.key)} onSettings={goSettings}>
             {#if r.key === 'crew'}
-              <CrewSummary {participants} onOpen={() => setFocus('crew')} />
+              <CrewSummary {participants} invitedCount={data.invitedCount ?? 0} onOpen={() => setFocus('crew')} />
             {:else if r.key === 'bookings'}
               <BookingsSummary bookings={data.bookings ?? []} onOpen={() => setFocus('bookings')} />
             {:else if r.key === 'map'}

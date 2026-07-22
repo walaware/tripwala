@@ -7,6 +7,7 @@
   import { statusOf, countByStatus, summarise } from '$lib/peopleStatus.js';
   import TripInviteModal from '$lib/sections/TripInviteModal.svelte';
   import JoinRequests from '$lib/sections/JoinRequests.svelte';
+  import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
 
   // LeanMeter's `lean` prop is a 1|2|3 union; narrow the raw number to it.
   /** @param {number} n @returns {1 | 2 | 3} */
@@ -264,14 +265,11 @@
     {/if}
   </div>
 
-  {#if ownerMode && !isPast}
-    <div class="mb-3.5 -mt-1.5">
-      <a
-        href="/{shareToken}/people"
-        class="font-body text-[12.5px] font-extrabold text-coral-600 underline-offset-2 hover:underline"
-      >Manage everyone →</a>
-    </div>
-  {/if}
+  <!-- Everything below is about YOU specifically. Kept together and labelled, so
+       a page about the whole crew doesn't read as if it randomly asks for your
+       dietary notes halfway down. -->
+  <div class="mt-1 border-t border-sand-200 pt-3">
+    <div class="mb-2 font-display text-[14px] font-bold text-cocoa-900">You</div>
 
   <div class="mb-1.5 font-body text-[12.5px] font-extrabold text-cocoa-500">
     {me ? 'Your answer' : 'Claim a name above to RSVP'}
@@ -355,14 +353,33 @@
       <p class="mt-1.5 font-body text-[12.5px] font-bold text-cocoa-400">No notes yet — add yours so the cooks know.</p>
     {/if}
   </div>
+  </div>
 </Card>
 
 {#if ownerMode && !isPast && pending.length}
-  <!-- Only the approval queue stays on the card — it's time-sensitive and someone
-       is actively waiting. The rest of people management (roles, remove, resend
-       and revoke invites) lives on the People page so there's one place for it. -->
+  <!-- Approval queue first — someone is actively waiting on it. -->
   <Card class="mt-3">
     <JoinRequests {pending} busy={rolesBusy} {act} />
+  </Card>
+{/if}
+
+{#if ownerMode && !isPast}
+  <!-- Roles + outstanding invites live HERE, on the crew surface, rather than
+       behind a further "manage everyone" link. This is already the trip's people
+       page; sending organizers to a second one just to change a role or chase an
+       invite was a level of navigation with nothing to justify it. -->
+  <Card class="mt-3">
+    <div class="mb-2 font-display text-[15px] font-bold text-text-strong">Members &amp; roles</div>
+    <PeopleRoles
+      {members}
+      pending={[]}
+      {invites}
+      {tripInvitations}
+      {currentParticipantId}
+      {emailEnabled}
+      busy={rolesBusy}
+      {act}
+    />
   </Card>
 {/if}
 
