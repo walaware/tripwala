@@ -7,11 +7,13 @@
   // (AppIcon · Wordmark · Button) + semantic theme tokens under data-app="tripwala"
   // so coral resolves. This is a marketing surface, not an AppShell app screen.
 
-  // "Start a trip" needs a signed-in user (the /new flow redirects to /login when
-  // logged out), so both hero + CTA-band buttons route through login and land the
-  // visitor straight in the new-trip flow. "Log in" goes to the plain login.
-  const START_HREF = '/login?next=/new';
-  const LOGIN_HREF = '/login';
+  // Google is the only way in, so the CTAs skip the intermediate /login page and
+  // kick off the OAuth handshake directly (/auth/google 303s straight to Google);
+  // `next` is validated server-side (safeNext) and decides where they land after.
+  // "Log in" returns to the dashboard; "Start a trip" drops them in the new-trip
+  // flow. A failed handshake still falls back to /login?error=oauth via the callback.
+  const START_HREF = '/auth/google?next=/new';
+  const LOGIN_HREF = '/auth/google?next=/';
 
   // Six trip modules → a tinted tile borrowing another suite app's soft accent as
   // its category colour, a house-question title, and one line. (RSVP · packing ·
