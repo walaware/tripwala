@@ -9,7 +9,7 @@ import { tripOg, crawlerOg } from '$lib/server/og.js';
 import { isCrawler } from '$lib/server/crawler.js';
 import { loadPlanning } from '$lib/server/planning.js';
 import { cloneTrip } from '$lib/server/cloneTrip.js';
-import { listInvitableFriends } from '$lib/server/invitations.js';
+import { listInvitableFriends, listTripInvitations } from '$lib/server/invitations.js';
 import { mapApp } from '$lib/prefs.js';
 
 /**
@@ -106,9 +106,17 @@ export async function load({ params, locals, url, request }) {
   // name-only entries. Match on full or first name (case-insensitive).
   const allOrphans = await listOrphans(pb, trip.id);
   const orphans = filterClaimable(allOrphans, locals.user.name);
-  // Approval queue + outstanding co-organizer invites, organizers only.
+  // Approval queue, organizers only.
   const pending = isOrganizer ? await listPending(pb, trip.id) : [];
-  const invites = isOrganizer ? await listInvites(pb, trip.id) : [];
+  // Outstanding invites, from both paths: email addresses (`invites`) and
+  // in-app friend invitations (`trip_invitations`). Everyone on the trip sees
+  // HOW MANY people are still to answer — that's half of "who's coming?" — but
+  // only organizers see who, since an email address isn't the crew's business.
+  const allInvites = await listInvites(pb, trip.id);
+  const allTripInvitations = await listTripInvitations(pb, trip.id);
+  const invitedCount = allInvites.length + allTripInvitations.length;
+  const invites = isOrganizer ? allInvites : [];
+  const tripInvitations = isOrganizer ? allTripInvitations : [];
 
   // Planning + idea ("someday") stages → the idea-gathering canvas (dates +
   // locations), not the full confirmed trip. An idea is a pre-planning trip;
@@ -165,6 +173,8 @@ export async function load({ params, locals, url, request }) {
     pending,
     invites,
     invitableFriends,
+    tripInvitations,
+    invitedCount,
     emailEnabled: isMailConfigured(),
     immichEnabled: await immichConfigured(),
     og

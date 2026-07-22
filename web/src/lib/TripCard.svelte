@@ -2,6 +2,7 @@
   import { Chip, Avatar, AvatarGroup, Button } from '@walaware/design';
   import { enhance } from '$app/forms';
   import { fmtDateRange, tripEmoji } from '$lib/format.js';
+  import HeroWash from '$lib/ui/HeroWash.svelte';
 
   /**
    * @type {{
@@ -9,6 +10,7 @@
    *     name: string, slug: string, location?: string, trip_type?: string,
    *     start_date?: string, end_date?: string,
    *     role?: string, status?: string, going?: number, maybe?: number, members?: number,
+   *     heroImage?: string,
    *     crew?: Array<{ name: string, avatar?: string }>,
    *     people?: Array<{ name: string, src?: string }>,
    *     _bucket?: 'current' | 'upcoming' | 'past'
@@ -66,9 +68,10 @@
 {:else}
   <a
     href="/{trip.slug}"
-    class="block rounded-2xl bg-surface-card p-[18px] shadow-card transition hover:-translate-y-0.5 hover:shadow-pop"
+    class="relative block overflow-hidden rounded-2xl bg-surface-card p-[18px] shadow-card transition hover:-translate-y-0.5 hover:shadow-pop"
   >
-    <div class="flex items-center gap-3">
+    <HeroWash {trip} />
+    <div class="relative flex items-center gap-3">
       <span
         class="grid h-[52px] w-[52px] flex-none place-items-center rounded-md text-[28px]"
         style="background: linear-gradient(135deg, var(--color-sand-200), var(--color-sand-300))"
@@ -86,7 +89,7 @@
       {/if}
     </div>
 
-    <div class="mt-3.5 flex items-center gap-2">
+    <div class="relative mt-3.5 flex items-center gap-2">
       {#if trip.crew?.length}
         <div class="flex pl-2">
           {#each trip.crew as p}

@@ -17,7 +17,6 @@
   import PeopleSection from '$lib/sections/PeopleSection.svelte';
   import GearSection from '$lib/sections/GearSection.svelte';
   import MealsSection from '$lib/sections/MealsSection.svelte';
-  import PackingSection from '$lib/sections/PackingSection.svelte';
   import ExpensesSection from '$lib/sections/ExpensesSection.svelte';
   import ImmichSection from '$lib/sections/ImmichSection.svelte';
   import SafetySection from '$lib/sections/SafetySection.svelte';
@@ -25,6 +24,7 @@
 
   // Dashboard chrome + compact rail summaries.
   import TripHeader from '$lib/sections/TripHeader.svelte';
+  import TripBanner from '$lib/sections/TripBanner.svelte';
   import StatStrip from '$lib/sections/StatStrip.svelte';
   import MobileHub from '$lib/sections/MobileHub.svelte';
   import OverviewBrief from '$lib/sections/OverviewBrief.svelte';
@@ -33,7 +33,6 @@
   import CrewSummary from '$lib/sections/summary/CrewSummary.svelte';
   import BookingsSummary from '$lib/sections/summary/BookingsSummary.svelte';
   import MapSummary from '$lib/sections/summary/MapSummary.svelte';
-  import PackingSummary from '$lib/sections/summary/PackingSummary.svelte';
   import GearSummary from '$lib/sections/summary/GearSummary.svelte';
   import FoodSummary from '$lib/sections/summary/FoodSummary.svelte';
   import ExpensesSummary from '$lib/sections/summary/ExpensesSummary.svelte';
@@ -104,8 +103,9 @@
     const onHold = bookings.filter((/** @type {any} */ b) => b.status === 'planning').length;
     const pins = (data.mapPins ?? []).length;
     const cityCount = (data.cities ?? []).length;
-    const pk = data.packing ?? [];
-    const pkDone = pk.filter((/** @type {any} */ p) => p.checked || p.participant).length;
+    // Your own pack only — `data.packing` no longer carries other people's items.
+    const pk = (data.packing ?? []).filter((/** @type {any} */ p) => !p.recommended);
+    const pkDone = pk.filter((/** @type {any} */ p) => p.checked).length;
     const gDone = gear.filter((/** @type {any} */ g) => g.remaining === 0).length;
     const mDone = meals.filter((/** @type {any} */ m) => m.ownerParticipant).length;
     return {
@@ -113,8 +113,14 @@
       crew: going || maybe ? `${going} going${maybe ? ` · ${maybe} maybe` : ''}` : 'No RSVPs yet',
       bookings: bookings.length ? `${bookings.length} booking${bookings.length === 1 ? '' : 's'}${onHold ? ` · ${onHold} on hold` : ''}` : 'Nothing booked yet',
       map: pins ? `${pins} pin${pins === 1 ? '' : 's'}${cityCount ? ` across ${cityCount} cit${cityCount === 1 ? 'y' : 'ies'}` : ''}` : 'No pins yet',
-      packing: pk.length ? `${pkDone} of ${pk.length} packed` : 'Nothing to pack yet',
-      gear: gear.length ? `${gDone} of ${gear.length} covered` : 'No shared gear yet',
+      // One line for the merged surface: what the group still needs, then your
+      // own progress. Either half alone is only half the answer.
+      gear: [
+        gear.length ? `${gDone} of ${gear.length} covered` : '',
+        pk.length ? `${pkDone} of ${pk.length} packed` : ''
+      ]
+        .filter(Boolean)
+        .join(' · ') || 'Nothing to bring yet',
       food: meals.length ? `${mDone} of ${meals.length} cooks` : 'No meals planned yet',
       expenses: (data.expenses ?? []).length
         ? (youNet > 0.005 ? `You're owed ${money(youNet)}` : youNet < -0.005 ? `You owe ${money(youNet)}` : 'All settled up')
@@ -330,13 +336,20 @@
     {:else if focus === 'map'}
       <MapSection shareToken={trip.share_token} {trip} mapPins={data.mapPins ?? []} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'crew'}
-      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} joinPolicy={trip.join_policy ?? 'instant'} {inviteUrl} {ownerUrl} emailEnabled={data.emailEnabled ?? false} members={data.members ?? []} pending={data.pending ?? []} invites={data.invites ?? []} onHide={null} onSettings={goSettings} />
+      <PeopleSection shareToken={trip.share_token} {participants} {currentParticipantId} {ownerMode} {isPast} invitableFriends={data.invitableFriends ?? []} inviteVisibility={trip.invite_visibility ?? 'everyone'} joinPolicy={trip.join_policy ?? 'instant'} {inviteUrl} {ownerUrl} emailEnabled={data.emailEnabled ?? false} members={data.members ?? []} pending={data.pending ?? []} invites={data.invites ?? []} tripInvitations={data.tripInvitations ?? []} invitedCount={data.invitedCount ?? 0} onHide={null} onSettings={goSettings} />
     {:else if focus === 'gear'}
-      <GearSection shareToken={trip.share_token} {gear} {currentParticipantId} onHide={null} onSettings={goSettings} />
+      <GearSection
+        shareToken={trip.share_token}
+        {gear}
+        packing={data.packing ?? []}
+        {currentParticipantId}
+        participantCount={participants.length}
+        isOrganizer={ownerMode}
+        onHide={null}
+        onSettings={goSettings}
+      />
     {:else if focus === 'food'}
       <MealsSection shareToken={trip.share_token} {meals} {currentParticipantId} {dietaryNotes} {trip} {ownerMode} onHide={null} onSettings={goSettings} />
-    {:else if focus === 'packing'}
-      <PackingSection shareToken={trip.share_token} packing={data.packing} {currentParticipantId} onHide={null} onSettings={goSettings} />
     {:else if focus === 'expenses'}
       <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'photos'}
@@ -345,7 +358,8 @@
   </div>
 {:else if isMobile}
   <!-- Mobile hub & spoke: trip home is a status list; a tap opens a module. -->
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} {manageActions} />
+  <TripBanner {trip} />
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} {manageActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -367,7 +381,8 @@
     {/if}
   </div>
 {:else}
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} crew={participants} {addActions} {manageActions} />
+  <TripBanner {trip} />
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} {manageActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -410,10 +425,8 @@
               <BookingsSummary bookings={data.bookings ?? []} onOpen={() => setFocus('bookings')} />
             {:else if r.key === 'map'}
               <MapSummary mapPins={data.mapPins ?? []} cities={data.cities ?? []} onOpen={() => setFocus('map')} />
-            {:else if r.key === 'packing'}
-              <PackingSummary packing={data.packing ?? []} onOpen={() => setFocus('packing')} />
             {:else if r.key === 'gear'}
-              <GearSummary {gear} onOpen={() => setFocus('gear')} />
+              <GearSummary {gear} packing={data.packing ?? []} onOpen={() => setFocus('gear')} />
             {:else if r.key === 'food'}
               <FoodSummary {meals} onOpen={() => setFocus('food')} />
             {:else if r.key === 'expenses'}

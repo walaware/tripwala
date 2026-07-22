@@ -1,10 +1,12 @@
 <script>
   import { invalidateAll } from '$app/navigation';
   import { tripAction } from '$lib/tripClient.js';
-  import { Card, Avatar, SegmentedControl, LeanMeter, Chip, Button } from '@walaware/design';
+  import { Card, SegmentedControl, LeanMeter, Chip, Button } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
+  import StatusAvatar from '$lib/ui/StatusAvatar.svelte';
+  import { statusOf, countByStatus, summarise } from '$lib/peopleStatus.js';
   import TripInviteModal from '$lib/sections/TripInviteModal.svelte';
-  import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
+  import JoinRequests from '$lib/sections/JoinRequests.svelte';
 
   // LeanMeter's `lean` prop is a 1|2|3 union; narrow the raw number to it.
   /** @param {number} n @returns {1 | 2 | 3} */
@@ -29,13 +31,15 @@
    *   emailEnabled?: boolean,
    *   members?: Array<{ id: string, display_name: string, role: string }>,
    *   pending?: Array<{ id: string, display_name: string, avatar?: string }>,
-   *   invites?: Array<{ id: string, email: string, role: string }>
+   *   invites?: Array<{ id: string, email: string, role: string, invitedBy?: string | null }>,
+   *   tripInvitations?: Array<{ id: string, name: string, avatar?: string, role: string }>,
+   *   invitedCount?: number
    * }}
    */
   let { shareToken, participants, currentParticipantId, ownerMode = false, onHide = null,
     onSettings = null, collapsed = false, onToggle = null, isPast = false, invitableFriends = [],
     inviteVisibility = 'everyone', joinPolicy = 'instant', inviteUrl = '', ownerUrl = '', emailEnabled = false,
-    members = [], pending = [], invites = [] } = $props();
+    members = [], pending = [], invites = [], tripInvitations = [], invitedCount = 0 } = $props();
 
   // Inviting is a one-tap action from this header (the ＋ button → a Modal),
   // allowed for everyone unless the trip restricts invites to organizers.
@@ -60,8 +64,6 @@
     }
   }
 
-  /** @type {Record<string, string>} */
-  const statusEmoji = { going: '🔥', maybe: '🤔', out: '💤' };
   const RSVP_OPTS = [
     { value: 'going', emoji: '🔥' },
     { value: 'maybe', emoji: '🤔' },
@@ -72,9 +74,36 @@
     { v: 2, label: '50 / 50' },
     { v: 3, label: 'Leaning yes' }
   ];
-  const going = $derived(participants.filter((p) => p.rsvp_status === 'going').length);
-  const maybe = $derived(participants.filter((p) => p.rsvp_status === 'maybe').length);
   const me = $derived(participants.find((p) => p.id === currentParticipantId) ?? null);
+
+  // Everyone who's been asked but isn't on the trip yet, from both invite paths:
+  // friend invitations (a known account, has a name + face) and email invites (an
+  // address only). Shown as ghost pills so "invited" reads as a real status
+  // rather than something you have to go hunting for.
+  const invitedPeople = $derived(
+    isPast
+      ? []
+      : [
+          ...tripInvitations.map((i) => ({
+            key: `friend-${i.id}`,
+            label: i.name,
+            avatar: i.avatar,
+            detail: i.role === 'organizer' ? 'invited as organizer' : 'invited'
+          })),
+          ...invites.map((i) => ({
+            key: `email-${i.id}`,
+            label: i.email,
+            avatar: '',
+            detail: i.invitedBy ? `invited by ${i.invitedBy}` : 'invited by email'
+          }))
+        ]
+  );
+  // Email addresses aren't the whole crew's business — non-organizers get the
+  // headcount only (`invitedCount`, always supplied), organizers get the names.
+  const showInvitedPills = $derived(ownerMode && invitedPeople.length > 0);
+  const outstanding = $derived(isPast ? 0 : invitedCount);
+  const counts = $derived(countByStatus(participants, outstanding));
+  const summary = $derived(summarise(counts));
 
   let saving = $state(false);
   /** participant id currently being saved (owner edits) */
@@ -154,8 +183,15 @@
 
 <SectionHeader emoji="🙌" title={isPast ? 'Who went' : "Who's in"} {onHide} {onSettings} {collapsed} {onToggle}>
   {#snippet action()}
-    <Chip tone="leaf">{going} {isPast ? 'went' : 'going'}</Chip>
-    {#if maybe > 0 && !isPast}<Chip tone="sun">{maybe} maybe</Chip>{/if}
+    {#if isPast}
+      <Chip tone="leaf">{counts.going} went</Chip>
+    {:else}
+      <!-- Every status that has anyone in it, so "3 invited" and "2 no answer"
+           are as visible as "4 going" — that's the whole point of the line. -->
+      {#each summary as s (s.key)}
+        <Chip tone={s.tone}>{s.count} {s.key === 'no_answer' ? 'no answer' : s.key === 'out' ? "can't" : s.key}</Chip>
+      {/each}
+    {/if}
     {#if canInvite}
       <Button variant="soft" size="sm" onclick={() => (inviteOpen = true)}>＋ Invite</Button>
     {/if}
@@ -171,7 +207,13 @@
         class="flex items-center gap-1.5 rounded-full bg-sand-100 py-1 pl-1 pr-3"
         class:opacity-50={p.rsvp_status === 'out'}
       >
-        <Avatar name={p.display_name} src={p.avatar} size={26} />
+        <StatusAvatar
+          name={p.display_name}
+          src={p.avatar}
+          size={26}
+          status={statusOf(p).key}
+          dim={p.rsvp_status === 'out'}
+        />
         <span class="font-body text-[13px] font-extrabold text-cocoa-900">
           {p.display_name}{#if p.id === currentParticipantId}<span class="font-bold text-cocoa-500"> (you)</span>{/if}
         </span>
@@ -191,16 +233,45 @@
             {/each}
           </span>
         {:else if p.rsvp_status === 'maybe'}
+          <!-- Status itself is on the avatar badge now; "maybe" still earns the
+               extra detail of how likely they are. -->
           <LeanMeter lean={leanOf(p.lean || 2)} showLabel={false} />
-        {:else if p.rsvp_status}
-          <span class="text-[13px]">{statusEmoji[p.rsvp_status]}</span>
         {/if}
         {#if p.arrival}
           <span class="text-[13px]" title={ARRIVAL_OPTS.find((o) => o.value === p.arrival)?.label}>{arrivalEmoji[p.arrival]}</span>
         {/if}
       </span>
     {/each}
+
+    <!-- Asked, but not on the trip yet. Dashed + faded so they read as "not here
+         yet" rather than crew, but they're on the same row so nobody has to go
+         looking for who's still outstanding. -->
+    {#each invitedPeople as inv (inv.key)}
+      <span
+        class="flex items-center gap-1.5 rounded-full border-2 border-dashed border-sand-300 py-1 pl-1 pr-3"
+        class:hidden={!showInvitedPills}
+        title={inv.detail}
+      >
+        <StatusAvatar name={inv.label} src={inv.avatar} size={26} status="invited" dim />
+        <span class="max-w-[11rem] truncate font-body text-[13px] font-bold text-cocoa-500">{inv.label}</span>
+      </span>
+    {/each}
+
+    {#if outstanding > 0 && !showInvitedPills}
+      <span class="flex items-center rounded-full border-2 border-dashed border-sand-300 px-3 py-1 font-body text-[13px] font-bold text-cocoa-500">
+        ✉️ {outstanding} invited, waiting to hear back
+      </span>
+    {/if}
   </div>
+
+  {#if ownerMode && !isPast}
+    <div class="mb-3.5 -mt-1.5">
+      <a
+        href="/{shareToken}/people"
+        class="font-body text-[12.5px] font-extrabold text-coral-600 underline-offset-2 hover:underline"
+      >Manage everyone →</a>
+    </div>
+  {/if}
 
   <div class="mb-1.5 font-body text-[12.5px] font-extrabold text-cocoa-500">
     {me ? 'Your answer' : 'Claim a name above to RSVP'}
@@ -286,12 +357,12 @@
   </div>
 </Card>
 
-{#if ownerMode && !isPast}
-  <!-- Roles management (approve/deny, make organizer/guest, remove, revoke
-       invites) — moved here from Trip settings. -->
+{#if ownerMode && !isPast && pending.length}
+  <!-- Only the approval queue stays on the card — it's time-sensitive and someone
+       is actively waiting. The rest of people management (roles, remove, resend
+       and revoke invites) lives on the People page so there's one place for it. -->
   <Card class="mt-3">
-    <div class="mb-2 font-display text-[15px] font-bold text-text-strong">Members &amp; roles</div>
-    <PeopleRoles {members} {pending} {invites} {currentParticipantId} busy={rolesBusy} {act} />
+    <JoinRequests {pending} busy={rolesBusy} {act} />
   </Card>
 {/if}
 

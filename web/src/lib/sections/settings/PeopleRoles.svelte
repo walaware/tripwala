@@ -1,6 +1,7 @@
 <script>
-  import { Avatar, Button } from '@walaware/design';
   import { labelClass } from './styles.js';
+  import { fmtRelative } from '$lib/format.js';
+  import JoinRequests from '$lib/sections/JoinRequests.svelte';
 
   /**
    * Roles management (organizers): approve/deny join requests, promote/demote,
@@ -10,28 +11,21 @@
    * @type {{
    *   members: Array<{ id: string, display_name: string, role: string }>,
    *   pending: Array<{ id: string, display_name: string, avatar?: string }>,
-   *   invites: Array<{ id: string, email: string, role: string }>,
+   *   invites: Array<{ id: string, email: string, role: string, invitedBy?: string | null, lastSent?: string }>,
+   *   tripInvitations?: Array<{ id: string, name: string, avatar?: string, role: string }>,
    *   currentParticipantId: string | null,
+   *   emailEnabled?: boolean,
    *   busy: string,
    *   act: (op: string, payload?: Record<string, unknown>, tag?: string) => Promise<void>
    * }}
    */
-  let { members, pending, invites, currentParticipantId, busy, act } = $props();
+  let { members, pending, invites, tripInvitations = [], currentParticipantId,
+    emailEnabled = false, busy, act } = $props();
 </script>
 
 {#if pending.length}
-  <div class="mb-3.5 rounded-xl bg-sun-100 p-3">
-    <div class="mb-1.5 font-display text-[14px] font-bold text-cocoa-900">Requests to join ({pending.length})</div>
-    <div class="flex flex-col">
-      {#each pending as p, i (p.id)}
-        <div class="flex items-center gap-2 py-1.5 {i !== 0 ? 'border-t border-sun-200' : ''}">
-          <Avatar name={p.display_name} src={p.avatar} size={28} />
-          <span class="min-w-0 flex-1 truncate font-body text-[14px] font-extrabold text-cocoa-900">{p.display_name}</span>
-          <Button variant="primary" size="sm" disabled={busy === 'ap-' + p.id} onclick={() => act('approve_member', { participantId: p.id }, 'ap-' + p.id)}>Approve</Button>
-          <button type="button" disabled={busy === 'dn-' + p.id} onclick={() => act('deny_member', { participantId: p.id }, 'dn-' + p.id)} class="rounded-full px-2.5 py-1 font-body text-[12px] font-extrabold text-berry-600 hover:bg-berry-200">Deny</button>
-        </div>
-      {/each}
-    </div>
+  <div class="mb-3.5">
+    <JoinRequests {pending} {busy} {act} />
   </div>
 {/if}
 
@@ -62,17 +56,52 @@
 </div>
 <p class="mt-2 font-body text-[11.5px] font-bold text-cocoa-400">Name-only guests (not signed in) appear on the trip, not here.</p>
 
-{#if invites.length}
+{#if invites.length || tripInvitations.length}
   <div class="mt-4">
-    <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400">Pending invites</div>
+    <div class="font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400">
+      Invited, waiting to hear back ({invites.length + tripInvitations.length})
+    </div>
     <div class="mt-1.5 flex flex-col gap-1.5">
+      <!-- Email invites: an address only, so they get a resend (the usual reason
+           one goes quiet is that it landed in spam). -->
       {#each invites as inv (inv.id)}
         <div class="flex items-center gap-2 rounded-lg bg-sand-100 px-3 py-2">
-          <span class="min-w-0 flex-1 truncate font-body text-[13.5px] font-extrabold text-cocoa-900">{inv.email}</span>
+          <span class="shrink-0 text-[13px]" title="Invited by email">✉️</span>
+          <span class="min-w-0 flex-1 truncate">
+            <span class="font-body text-[13.5px] font-extrabold text-cocoa-900">{inv.email}</span>
+            <span class="font-body text-[11.5px] font-bold text-cocoa-400">
+              {#if inv.lastSent}· sent {fmtRelative(inv.lastSent)} ago{/if}{#if inv.invitedBy} · by {inv.invitedBy}{/if}
+            </span>
+          </span>
           <span class="shrink-0 font-body text-[11px] font-extrabold uppercase tracking-wide text-coral-600">{inv.role === 'organizer' ? 'Organizer' : 'Guest'}</span>
+          {#if emailEnabled}
+            <button
+              type="button" disabled={busy === 'reInv-' + inv.id} title="Send the invite email again"
+              onclick={() => act('resend_invite', { inviteId: inv.id }, 'reInv-' + inv.id)}
+              class="shrink-0 rounded-full border-2 border-sand-300 px-2.5 py-1 font-body text-[12px] font-extrabold text-cocoa-700 hover:border-coral-300 disabled:opacity-50"
+            >{busy === 'reInv-' + inv.id ? 'Sending…' : 'Resend'}</button>
+          {/if}
           <button
             type="button" disabled={busy === 'rmInv-' + inv.id} title="Revoke invite"
             onclick={() => act('revoke_invite', { inviteId: inv.id }, 'rmInv-' + inv.id)}
+            class="shrink-0 rounded-full px-2.5 py-1 font-body text-[12px] font-extrabold text-berry-600 hover:bg-berry-200 disabled:opacity-50"
+          >Revoke</button>
+        </div>
+      {/each}
+
+      <!-- Friend invitations: a known account, so it's sitting on their bell —
+           nothing to resend, just revoke. -->
+      {#each tripInvitations as inv (inv.id)}
+        <div class="flex items-center gap-2 rounded-lg bg-sand-100 px-3 py-2">
+          <span class="shrink-0 text-[13px]" title="Invited in the app">🔔</span>
+          <span class="min-w-0 flex-1 truncate">
+            <span class="font-body text-[13.5px] font-extrabold text-cocoa-900">{inv.name}</span>
+            <span class="font-body text-[11.5px] font-bold text-cocoa-400"> · waiting on their reply</span>
+          </span>
+          <span class="shrink-0 font-body text-[11px] font-extrabold uppercase tracking-wide text-coral-600">{inv.role === 'organizer' ? 'Organizer' : 'Guest'}</span>
+          <button
+            type="button" disabled={busy === 'rmTi-' + inv.id} title="Revoke invitation"
+            onclick={() => act('revoke_trip_invitation', { invitationId: inv.id }, 'rmTi-' + inv.id)}
             class="shrink-0 rounded-full px-2.5 py-1 font-body text-[12px] font-extrabold text-berry-600 hover:bg-berry-200 disabled:opacity-50"
           >Revoke</button>
         </div>

@@ -4,6 +4,7 @@
 
 import { avatarUrl } from './userAvatar.js';
 import { participantName } from '../displayName.js';
+import { heroImageUrl } from './tripMedia.js';
 
 /**
  * @typedef {Object} DashTrip
@@ -16,6 +17,7 @@ import { participantName } from '../displayName.js';
  * @property {string} role
  * @property {string} status
  * @property {string} trip_type
+ * @property {string} heroImage
  * @property {number} members
  * @property {number} going
  * @property {number} maybe
@@ -125,6 +127,9 @@ export async function loadUserTrips(pb, userId) {
       role: roleByTrip[t.id] ?? 'guest',
       status: t.status || 'confirmed',
       trip_type: t.trip_type ?? 'other',
+      // Card-sized cover thumb; '' falls through to the generated per-type
+      // artwork in $lib/tripHero.js.
+      heroImage: heroImageUrl(t, '416x224') ?? '',
       ...(stats[t.id] ?? { members: 0, going: 0, maybe: 0 }),
       crew: crewPreview(crewByTrip[t.id] ?? []),
       _start: start,

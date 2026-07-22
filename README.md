@@ -36,9 +36,11 @@ zero stoves — claim "I'll bring it" and everyone sees it's covered, instantly.
   non-members get just a teaser (name + a blurb).
 - 🙌 **RSVP** — Going / Maybe / Can't, at a glance.
 - 🎒 **Gear claims, collision-safe.** Claim items so nobody doubles up; claiming
-  drops it onto your personal packing list automatically.
+  drops it into your own pack automatically.
 - 🍳 **Meal sign-ups** — slots auto-generated from the trip dates, with dish notes.
-- 🧳 **Packing** — a shared group list plus your own personal checklist.
+- 🧳 **Your pack** — a private checklist on the same surface. Organizers can
+  suggest items into everyone's pack, and 👁 puts one on the group's list so the
+  crew can see you've got it covered.
 - ⚡ **Feels live** — the page refreshes itself; everyone sees changes within
   seconds.
 - 📱 **Mobile-first**, responsive up to desktop, with the warm **Campfire**
@@ -150,8 +152,12 @@ account (becoming an organizer) — also how you add co-organizers.
   linked Google identity.
 - `participants` is the membership table — a participant links to a `user` and a
   `role` (`organizer` | `guest`). `trips.created_by` is the creator.
-- Gear "remaining" = `qty_needed − Σ claims`; claiming auto-adds a personal
-  packing item linked via `from_gear`.
+- Gear "remaining" = `qty_needed − Σ claims`; claiming auto-adds an item to your
+  pack linked via `from_gear`. That link runs both ways — sharing one of your own
+  items (👁) creates the public counterpart and links it the same way, so the link
+  itself is the visibility flag.
+- `packing_items` is either yours (`participant` set) or an organizer's
+  suggestion (`recommended`). Other people's items are never sent to the browser.
 
 ### Security model
 

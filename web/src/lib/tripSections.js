@@ -9,8 +9,10 @@ export const RAIL_MODULES = [
   { key: 'crew', emoji: '🙌', title: "Who's coming?", nav: 'Members' },
   { key: 'bookings', emoji: '🎫', title: "What's booked?", nav: 'Bookings' },
   { key: 'map', emoji: '🗺️', title: 'Pins & places', nav: 'Map' },
-  { key: 'packing', emoji: '🧳', title: 'Packing list', nav: 'Packing' },
-  { key: 'gear', emoji: '🎒', title: "Who's bringing what?", nav: 'Gear' },
+  // One surface for everything to bring: the group's list (claimable) plus your
+  // own pack. Previously split across 'packing' and 'gear', whose titles both
+  // promised "the stuff to bring" and competed for the same meaning.
+  { key: 'gear', emoji: '🎒', title: 'What to bring', nav: 'Gear' },
   { key: 'food', emoji: '🍳', title: "Who's cooking?", nav: 'Food' },
   { key: 'expenses', emoji: '💸', title: 'Who paid what?', nav: 'Expenses' }
 ];

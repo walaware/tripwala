@@ -10,6 +10,7 @@
 // A member-uploaded image wins over an unfurled og:image, same as the cards.
 
 import { previewText } from './teaser.js';
+import { heroImageUrl } from './tripMedia.js';
 import { locationImageUrl } from './locationMedia.js';
 import { fmtDateRange } from '../format.js';
 
@@ -58,6 +59,11 @@ export function absolutize(ref, origin) {
  */
 async function ogImageRef(pb, trip) {
   const status = trip.status || 'confirmed';
+
+  // An explicit trip cover wins outright, at any stage — it's the one image
+  // someone deliberately chose to represent this trip.
+  const hero = heroImageUrl(trip, '1000x0');
+  if (hero) return hero;
 
   // Confirmed / completed: prefer the chosen location's hero picture.
   if (status !== 'planning') {

@@ -9,6 +9,10 @@ import {
 import { isMailConfigured } from '$lib/server/mailer.js';
 import { immichConfigured } from '$lib/server/immich.js';
 import { cloneTrip } from '$lib/server/cloneTrip.js';
+import { heroImageUrl } from '$lib/server/tripMedia.js';
+
+/** Same 5 MB ceiling as avatars and location-idea images. */
+const MAX_HERO_BYTES = 5 * 1024 * 1024;
 
 // Trip settings — one home. Reached from the sidebar ⚙ (desktop), the mobile
 // trip-home row, or any module's ⋯ menu. Any signed-in member can open it
@@ -83,6 +87,7 @@ export async function load({ params, locals }) {
       owner_token: trip.owner_token || '',
       invite_token: trip.invite_token || '',
       trip_type: trip.trip_type || '',
+      heroImage: heroImageUrl(trip, '1000x0') ?? '',
       location: trip.location || '',
       description: trip.description || '',
       emergency_info: trip.emergency_info || '',
@@ -125,5 +130,62 @@ export const actions = {
       return fail(502, { cloneError: 'Could not clone the trip — please try again.' });
     }
     throw redirect(303, `/${token}`);
+  },
+
+  // Trip cover photo. Multipart, so it's a form action rather than a JSON op on
+  // the shared actions endpoint (a File can't ride in JSON). Mirrors the profile
+  // avatar upload: validate, write via the superuser client, redirect back.
+  // Organizers only — the cover is the trip's face on everyone's dashboard.
+  heroImage: async ({ request, params, locals }) => {
+    const back = `/${params.share_token}/settings`;
+    if (!locals.user) throw redirect(303, `/login?next=${encodeURIComponent(back)}`);
+
+    const pb = await superuserPb();
+    const trip = await fetchTrip(pb, params.share_token);
+    const me = await getMembership(pb, trip.id, locals.user.id);
+    if (!me || me.role !== 'organizer') {
+      return fail(403, { heroError: 'Only organizers can change the trip photo.' });
+    }
+
+    const form = await request.formData();
+    const file = form.get('hero');
+    if (!(file instanceof File) || file.size === 0) {
+      return fail(400, { heroError: 'Choose a photo first.' });
+    }
+    if (!file.type.startsWith('image/')) {
+      return fail(400, { heroError: "That doesn't look like an image." });
+    }
+    if (file.size > MAX_HERO_BYTES) {
+      return fail(400, { heroError: 'Image must be under 5 MB.' });
+    }
+
+    const fd = new FormData();
+    fd.append('hero_image', file, file.name || 'cover');
+    try {
+      await pb.collection('trips').update(trip.id, fd);
+    } catch (_) {
+      return fail(400, { heroError: 'Could not save that image — try a different one.' });
+    }
+    throw redirect(303, back);
+  },
+
+  // Drop the cover — the trip falls back to the picked location's photo, then to
+  // the generated per-type artwork.
+  removeHeroImage: async ({ params, locals }) => {
+    const back = `/${params.share_token}/settings`;
+    if (!locals.user) throw redirect(303, `/login?next=${encodeURIComponent(back)}`);
+
+    const pb = await superuserPb();
+    const trip = await fetchTrip(pb, params.share_token);
+    const me = await getMembership(pb, trip.id, locals.user.id);
+    if (!me || me.role !== 'organizer') {
+      return fail(403, { heroError: 'Only organizers can change the trip photo.' });
+    }
+    try {
+      await pb.collection('trips').update(trip.id, { hero_image: null });
+    } catch (_) {
+      return fail(400, { heroError: 'Could not remove the photo.' });
+    }
+    throw redirect(303, back);
   }
 };

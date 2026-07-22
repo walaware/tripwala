@@ -1,11 +1,11 @@
 // Clone a trip into a fresh one (#5): duplicate the structural scaffolding —
-// gear list, shared packing items, and meal slots — into a brand-new trip owned
+// gear list, packing recommendations, and meal slots — into a brand-new trip owned
 // by the cloner, so a crew can re-run a trip without rebuilding the checklists.
 //
 // What carries over: trip details (name + " (copy)", type, location, the plan,
-// emergency info, min-nights), gear_items, SHARED packing_items, and meal_slots
+// emergency info, min-nights), gear_items, RECOMMENDED packing_items, and meal_slots
 // (label only — dates reset, since the new trip re-picks them in planning).
-// What does NOT: dates, members, RSVPs, gear claims, meal sign-ups, expenses,
+// What does NOT: dates, members, RSVPs, gear claims, personal packs, meal sign-ups, expenses,
 // and any planning-phase votes/ideas. The new trip starts in `planning`.
 
 import { generateOwnerToken, generateInviteToken } from './tokens.js';
@@ -74,9 +74,11 @@ export async function cloneTrip(pb, source, user, joinTrip) {
     );
   }
   for (const p of packing) {
-    if (!p.is_shared) continue; // personal items belonged to people not on the new trip
+    // Only the organizer's recommendations carry over — personal packs belonged
+    // to people who aren't on the new trip.
+    if (!p.recommended) continue;
     work.push(
-      pb.collection('packing_items').create({ trip: trip.id, label: p.label, is_shared: true, checked: false })
+      pb.collection('packing_items').create({ trip: trip.id, label: p.label, recommended: true, checked: false })
     );
   }
   for (const s of slots) {

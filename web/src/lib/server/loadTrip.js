@@ -3,6 +3,8 @@ import { superuserPb } from './pocketbase.js';
 import { settleUp } from './settle.js';
 import { avatarUrl } from './userAvatar.js';
 import { locationImageUrl } from './locationMedia.js';
+import { heroImageUrl } from './tripMedia.js';
+import { shapeGear, sortByNeed, splitPacking } from '../bring.js';
 import { participantName } from '../displayName.js';
 import { shapeItinerary } from './itinerary.js';
 import { shapeCities } from './cities.js';
@@ -71,32 +73,15 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
   /** @type {Record<string, string>} */
   const avatarById = Object.fromEntries(participants.map((p) => [p.id, avatarUrl(p.expand?.user) || '']));
 
-  // gear remaining = qty_needed - sum(claims)
-  /** @type {Record<string, Array<{id: string, participant: string, participantName: string, qty_claimed: number}>>} */
-  const claimsByItem = {};
-  for (const c of gearClaims) {
-    (claimsByItem[c.gear_item] ??= []).push({
-      id: c.id,
-      participant: c.participant,
-      participantName: nameById[c.participant] ?? 'Someone',
-      qty_claimed: c.qty_claimed ?? 1
-    });
-  }
-  const gear = gearItems.map((g) => {
-    const claims = claimsByItem[g.id] ?? [];
-    const claimed = claims.reduce((sum, c) => sum + (c.qty_claimed ?? 1), 0);
-    const needed = g.qty_needed ?? 1;
-    return {
-      id: g.id,
-      name: g.name,
-      category: g.category,
-      notes: g.notes,
-      qty_needed: needed,
-      claimed,
-      remaining: Math.max(0, needed - claimed),
-      claims
-    };
-  });
+  // gear remaining = qty_needed - sum(claims). Lives in $lib/bring.js so it's
+  // testable without a PocketBase instance.
+  const gear = sortByNeed(
+    shapeGear(/** @type {any} */ (gearItems), /** @type {any} */ (gearClaims), nameById)
+  );
+
+  // Personal packs are private: split server-side so only the viewer's own items
+  // (plus open recommendations) ever leave the server.
+  const myPacking = splitPacking(/** @type {any} */ (packingItems), currentParticipantId);
 
   // Owner + helpers per slot. The owner (is_owner) sets the dish; others help.
   /** @type {Record<string, any[]>} */
@@ -172,6 +157,10 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       owner_token: trip.owner_token || '',
       invite_token: trip.invite_token || '',
       trip_type: trip.trip_type || '',
+      // Trip cover (#hero). Banner-sized; the trip card asks for its own thumb.
+      // '' when no cover is uploaded — $lib/tripHero.js then falls back to the
+      // picked location's photo, then to the generated per-type artwork.
+      heroImage: heroImageUrl(trip, '1000x0') ?? '',
       status: trip.status || 'confirmed',
       hidden_sections: Array.isArray(trip.hidden_sections) ? trip.hidden_sections : [],
       join_policy: trip.join_policy || 'instant',
@@ -203,14 +192,18 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       .sort((a, b) => a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })),
     gear,
     meals,
-    packing: packingItems.map((p) => ({
+    // Your own pack + the organizer's open suggestions. Other people's items are
+    // NOT sent — they used to be shipped to every client and merely filtered out
+    // in the component, which made "private" a UI convention rather than a fact.
+    // Anything someone wants the crew to see becomes a public gear item instead.
+    packing: [...myPacking.mine, ...myPacking.recommendations].map((/** @type {any} */ p) => ({
       id: p.id,
       label: p.label,
-      is_shared: p.is_shared,
+      recommended: Boolean(p.recommended),
       checked: p.checked,
       participant: p.participant,
-      participantName: p.participant ? (nameById[p.participant] ?? 'Someone') : null,
-      from_gear: p.from_gear || null
+      from_gear: p.from_gear || null,
+      from_recommendation: p.from_recommendation || null
     })),
     expenses,
     settlement,

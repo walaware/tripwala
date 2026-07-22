@@ -1,15 +1,18 @@
 <script>
   import { goto, invalidateAll } from '$app/navigation';
+  import { enhance } from '$app/forms';
   import { Card, Switch } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import { useShell } from '$lib/shell.svelte.js';
   import { tripSectionNav } from '$lib/tripSections.js';
-  import { tripEmoji } from '$lib/format.js';
+  import { tripEmoji, tripTypeLabel } from '$lib/format.js';
+  import { tripHeroSrc } from '$lib/tripHero.js';
+  import { heroDefaultSrc } from '$lib/heroDefaults.js';
   import SettingRow from '$lib/sections/settings/SettingRow.svelte';
   import InviteAccess from '$lib/sections/settings/InviteAccess.svelte';
 
-  /** @type {{ data: any }} */
-  let { data } = $props();
+  /** @type {{ data: any, form?: any }} */
+  let { data, form } = $props();
 
   const trip = $derived(data.trip);
   const shareToken = $derived(data.shareToken);
@@ -17,6 +20,9 @@
   const me = $derived(data.me);
 
   const notifyOn = $derived(me?.notify !== false);
+  // Preview shows the same resolution the trip page will use, so what you see
+  // here is what the banner shows — including the generated per-type fallback.
+  const heroSrc = $derived(tripHeroSrc(trip, heroDefaultSrc(trip.trip_type)));
 
   // Keep the AppShell in the trip's CONTEXTUAL mode while on Trip settings —
   // entering settings shouldn't dump the user back to the app-level global nav.
@@ -47,9 +53,8 @@
       { key: 'bookings', icon: '🎫', label: 'Bookings', on: "What's booked?", off: 'Flights, stays & tickets' },
       { key: 'map', icon: '🗺️', label: 'Map', on: 'Pins & places', off: 'Pins & places' },
       { key: 'crew', icon: '🙌', label: 'Members', on: "Who's coming", off: 'RSVPs & the crew' },
-      { key: 'gear', icon: '🎒', label: 'Gear', on: 'Shared gear to grab', off: 'Shared gear to grab' },
+      { key: 'gear', icon: '🎒', label: 'Gear', on: "The group's list & your pack", off: "The group's list & your pack" },
       { key: 'food', icon: '🍳', label: 'Food', on: "Meals & who's cooking", off: "Meals & who's cooking" },
-      { key: 'packing', icon: '🧳', label: 'Packing', on: 'Personal packing list', off: 'Personal packing list' },
       { key: 'expenses', icon: '💸', label: 'Expenses', on: 'Who paid what?', off: 'Shared costs & settle-up' },
       ...((trip.immich_album_url || '').trim()
         ? [{ key: 'photos', icon: '📷', label: 'Photos', on: 'Shared album', off: 'Shared album' }]
@@ -109,6 +114,67 @@
     </p>
   </Card>
 
+  <!-- 🖼️ Trip photo — the cover shown on the trip banner and everyone's dashboard -->
+  {#if ownerMode}
+    <div class={groupLabel}>🖼️ Trip photo</div>
+    <Card>
+      <div class="relative mb-3 h-[108px] overflow-hidden rounded-lg bg-sand-200">
+        {#if heroSrc}
+          <img src={heroSrc} alt="" class="h-full w-full object-cover" />
+        {:else}
+          <div class="grid h-full place-items-center font-body text-[12.5px] font-bold text-text-muted">
+            No photo yet
+          </div>
+        {/if}
+      </div>
+
+      {#if form?.heroError}
+        <p class="mb-2 font-body text-[12.5px] font-extrabold text-berry-600">{form.heroError}</p>
+      {/if}
+
+      <div class="flex flex-wrap items-center gap-2">
+        <form method="POST" action="?/heroImage" enctype="multipart/form-data" use:enhance>
+          <input
+            type="file" name="hero" accept="image/*" id="hero-file" class="sr-only"
+            onchange={(e) => /** @type {HTMLInputElement} */ (e.currentTarget).form?.requestSubmit()}
+          />
+          <label
+            for="hero-file"
+            class="cursor-pointer rounded-full border-2 border-sand-300 px-3 py-1.5 font-body text-[12.5px] font-extrabold text-cocoa-700 hover:border-coral-300"
+          >{trip.heroImage ? 'Replace photo' : 'Upload a photo'}</label>
+        </form>
+
+        {#if trip.heroImage}
+          <form method="POST" action="?/removeHeroImage" use:enhance>
+            <button type="submit" class="rounded-full px-3 py-1.5 font-body text-[12.5px] font-extrabold text-berry-600 hover:bg-berry-200">
+              Remove
+            </button>
+          </form>
+        {/if}
+      </div>
+
+      <p class="mt-2 font-body text-[12px] font-bold text-text-muted">
+        Wide shots work best — it crops to a low strip. Without one, the trip uses the
+        photo of the spot you picked, then artwork for a {tripTypeLabel(trip.trip_type).toLowerCase()}.
+      </p>
+    </Card>
+  {/if}
+
+  <!-- 🙌 People — the crew's own home: statuses, roles, and outstanding invites -->
+  <div class={groupLabel}>🙌 People</div>
+  <Card>
+    <a href="/{shareToken}/people" class="flex items-center gap-3 py-1">
+      <span class="text-[20px]">🙌</span>
+      <span class="min-w-0 flex-1">
+        <span class="block font-body text-[14px] font-extrabold text-text-strong">Who's coming</span>
+        <span class="block font-body text-[12.5px] font-bold text-text-muted">
+          {ownerMode ? 'RSVPs, roles and who still owes an answer' : 'RSVPs and the crew'}
+        </span>
+      </span>
+      <span class="font-body text-[15px] font-extrabold text-coral-600">→</span>
+    </a>
+  </Card>
+
   <!-- 🔔 Your notifications -->
   <div class={groupLabel}>🔔 Your notifications</div>
   <Card>
@@ -125,8 +191,9 @@
   </Card>
 
   <!-- 🔒 Friends'-calendar privacy — the only access control that stays here;
-       join/share policy live in the invite modal, roles under "Who's in", and
-       trip actions (edit/clone/leave/…) in the trip-header ⋯ menu. -->
+       join/share policy live in the invite modal, roles and outstanding invites
+       on the People page above, and trip actions (edit/clone/leave/…) in the
+       trip-header ⋯ menu. -->
   {#if ownerMode}
     <div class={groupLabel}>🔒 Friends' calendars</div>
     <Card>

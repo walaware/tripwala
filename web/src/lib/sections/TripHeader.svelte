@@ -1,11 +1,17 @@
 <script>
-  import { Avatar, Button, OverflowMenu } from '@walaware/design';
+  import { Button, OverflowMenu } from '@walaware/design';
 
   /**
-   * Sticky trip header for the dashboard. Emoji tile · name · meta · overlapped
-   * crew avatars · a primary "＋ Add" OverflowMenu. Measured by the shell for the
-   * scrollSpy offset (`data-appshell-sticky`) and collapsed into the mobile top
-   * bar (title/subtitle/icon fed via the shell).
+   * Sticky trip header for the dashboard. Emoji tile · name · meta · a primary
+   * "＋ Add" OverflowMenu. Measured by the shell for the scrollSpy offset
+   * (`data-appshell-sticky`) and collapsed into the mobile top bar
+   * (title/subtitle/icon fed via the shell).
+   *
+   * Crew avatars used to sit immediately left of "＋ Add", which read as
+   * "＋ Add [a person]" — and they were decorative (aria-hidden, not clickable,
+   * capped at 6, no RSVP status). People live in one place now: the "Who's in"
+   * card, where a face also carries its status. The header's `meta` line still
+   * carries the headline count.
    *
    * (The mockup's "💬 Message crew" button is omitted — tripwala has no crew-chat
    * surface to back it.)
@@ -15,15 +21,11 @@
    *   name: string,
    *   meta: string,
    *   isPast?: boolean,
-   *   crew?: Array<{ id: string, display_name: string, avatar?: string }>,
    *   addActions: Array<{ icon?: string, label: string, onClick?: () => void }>,
    *   manageActions?: Array<{ icon?: string, label: string, onClick?: () => void, danger?: boolean }>
    * }}
    */
-  let { emoji, name, meta, isPast = false, crew = [], addActions, manageActions = [] } = $props();
-
-  const shown = $derived(crew.slice(0, 6));
-  const extra = $derived(Math.max(0, crew.length - shown.length));
+  let { emoji, name, meta, isPast = false, addActions, manageActions = [] } = $props();
 </script>
 
 <header data-appshell-sticky class="trip-head" style="background: var(--color-bg-app)">
@@ -43,19 +45,6 @@
         {/if}
       </div>
     </div>
-
-    {#if shown.length}
-      <div class="hidden items-center sm:flex" aria-hidden="true">
-        {#each shown as p, i (p.id)}
-          <span class="-ml-2 first:ml-0" style="z-index: {shown.length - i}">
-            <Avatar name={p.display_name} src={p.avatar} size={30} ring />
-          </span>
-        {/each}
-        {#if extra}
-          <span class="-ml-2 grid h-[30px] w-[30px] place-items-center rounded-full border-2 border-white bg-sand-200 font-body text-[11px] font-extrabold text-cocoa-600">+{extra}</span>
-        {/if}
-      </div>
-    {/if}
 
     <OverflowMenu actions={addActions} label="Add to this trip" align="end">
       {#snippet trigger({ toggle })}

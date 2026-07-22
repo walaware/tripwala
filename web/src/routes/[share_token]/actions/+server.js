@@ -5,6 +5,7 @@ import { isMailConfigured, sendInviteEmail } from '$lib/server/mailer.js';
 import { immichConfigured, createTripAlbum, syncAlbumName, parseShareLink } from '$lib/server/immich.js';
 import { inviteFriendToTrip } from '$lib/server/invitations.js';
 import { isVisibility } from '$lib/visibility.js';
+import { claimQty, canTogglePacking, canRecommend } from '$lib/bring.js';
 
 // All trip mutations funnel through here. PocketBase collection rules are locked
 // to superuser-only, so the browser cannot write directly — it POSTs an op to
@@ -19,6 +20,8 @@ import { isVisibility } from '$lib/visibility.js';
 
 export async function POST({ params, request, locals, url }) {
   if (!locals.user) throw error(401, 'Sign in to make changes');
+  // Captured once so nested helpers keep the non-null narrowing.
+  const actorId = locals.user.id;
 
   const pb = await superuserPb();
 
@@ -50,6 +53,79 @@ export async function POST({ params, request, locals, url }) {
   async function firstOrNull(coll, filter) {
     const res = await pb.collection(coll).getList(1, 1, { filter });
     return res.items[0] ?? null;
+  }
+
+  // ---- Email invites ----
+
+  // The link an emailed invite must carry: the share slug PLUS the trip's invite
+  // capability token (#2). Without the token the recipient lands on the view-only
+  // teaser with no way to join.
+  const joinUrl = () =>
+    trip.invite_token
+      ? `${url.origin}/${trip.share_token}?invite=${encodeURIComponent(trip.invite_token)}`
+      : `${url.origin}/${trip.share_token}`;
+
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  /** Normalize + validate an invite address. Stored lowercased. @param {unknown} raw */
+  function inviteEmail(raw) {
+    const e = String(raw ?? '').trim().toLowerCase().slice(0, 254);
+    if (!EMAIL_RE.test(e)) throw error(400, 'Enter a valid email address');
+    return e;
+  }
+
+  // How long an invite has to sit before it can be emailed again. Resending is
+  // rare and legitimate (it went to spam), so a wait costs nobody anything —
+  // whereas without one, `resend_invite` is a free way to hammer an arbitrary
+  // address through our SMTP relay.
+  const RESEND_COOLDOWN_MS = 5 * 60 * 1000;
+
+  /**
+   * Record an email invite so it's visible as "invited" on the people surface and
+   * can be resent or revoked. One row per (trip, email); an existing co-organizer
+   * invite is never demoted to guest by a later plain invite.
+   *
+   * `invited_by` only moves to the current actor when they're an organizer.
+   * Otherwise a plain member re-inviting an address an organizer had already
+   * vouched for would overwrite that provenance — and since an organizer's
+   * vouching is what lets a guest invite skip the approval queue, that would
+   * silently strip the bypass and strand someone the organizer let in.
+   *
+   * @param {string} email @param {string} role
+   * @param {{ sent?: boolean }} [opts] whether an invite email just went out
+   */
+  async function upsertInvite(email, role, opts = {}) {
+    const existing = await firstOrNull(
+      'invites',
+      pb.filter('trip = {:t} && email = {:e}', { t: trip.id, e: email })
+    );
+    /** @type {Record<string, unknown>} */
+    const patch = {
+      role: role === 'organizer' || existing?.role === 'organizer' ? 'organizer' : 'guest'
+    };
+    if (opts.sent) patch.last_sent = new Date().toISOString();
+    if (!existing || isOrganizer) patch.invited_by = actorId;
+
+    if (existing) {
+      await pb.collection('invites').update(existing.id, patch);
+      return existing.id;
+    }
+    const created = await pb.collection('invites').create({ trip: trip.id, email, ...patch });
+    return created.id;
+  }
+
+  /**
+   * One (`label`) or many (`labels`) item names, e.g. a pasted list. Trimmed,
+   * capped at 200 chars each and 50 per call. Shared by pack_add / recommend_add.
+   * @param {any} b
+   */
+  function labelList(b) {
+    const raw = Array.isArray(b.labels) ? b.labels : [b.label];
+    const labels = raw
+      .map((/** @type {any} */ l) => String(l ?? '').trim().slice(0, 200))
+      .filter(Boolean)
+      .slice(0, 50);
+    if (!labels.length) throw error(400, 'Label required');
+    return labels;
   }
 
   // Validate + normalize a map-pin payload (shared by add/update).
@@ -143,17 +219,54 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
+      // Remove a gear item outright, with its claims and the auto-added bag rows
+      // that pointed at it. Whoever added it, or an organizer — same rule as map
+      // pins. (Until now neither gear nor bag items could be deleted at all; the
+      // only way to lose one was to leave the trip.)
+      case 'gear_delete': {
+        const g = await inTrip('gear_items', String(body.gearItemId ?? ''));
+        if (!isOrganizer && g.created_by !== me.id) {
+          throw error(403, 'Only the person who added it (or an organizer) can remove it');
+        }
+        // PB cascades gear_claims and from_gear bag rows, but the cascade only
+        // fires on the relation — do it explicitly so behaviour doesn't depend on
+        // migration order.
+        for (const coll of ['gear_claims', 'packing_items']) {
+          const field = coll === 'gear_claims' ? 'gear_item' : 'from_gear';
+          const rows = await pb
+            .collection(coll)
+            .getFullList({ filter: pb.filter(`${field} = {:g}`, { g: g.id }) })
+            .catch(() => []);
+          for (const r of rows) await pb.collection(coll).delete(r.id).catch(() => {});
+        }
+        await pb.collection('gear_items').delete(g.id);
+        break;
+      }
+
+      // Remove an item from a bag. Yours, or an organizer tidying up.
+      case 'pack_delete': {
+        const item = await inTrip('packing_items', String(body.itemId ?? ''));
+        if (!canTogglePacking(item, me.id, isOrganizer)) {
+          throw error(403, "That's in someone else's bag");
+        }
+        await pb.collection('packing_items').delete(item.id);
+        break;
+      }
+
       case 'claim': {
         const g = await inTrip('gear_items', body.gearItemId);
         const claims = await pb
           .collection('gear_claims')
           .getFullList({ filter: pb.filter('gear_item = {:g}', { g: g.id }) });
-        const claimed = claims.reduce((s, c) => s + (c.qty_claimed || 1), 0);
-        const remaining = Math.max(1, (g.qty_needed || 1) - claimed);
         await pb
           .collection('gear_claims')
-          .create({ gear_item: g.id, participant: me.id, qty_claimed: remaining });
-        // Auto-add to claimer's packing list (dedupe-guarded).
+          .create({
+            gear_item: g.id,
+            participant: me.id,
+            qty_claimed: claimQty(g.qty_needed, /** @type {any} */ (claims))
+          });
+        // Auto-add to the claimer's own pack (dedupe-guarded). `from_gear` links
+        // the two — the same link `pack_share` creates coming the other way.
         const existing = await firstOrNull(
           'packing_items',
           pb.filter('from_gear = {:g} && participant = {:p}', { g: g.id, p: me.id })
@@ -163,7 +276,7 @@ export async function POST({ params, request, locals, url }) {
             trip: trip.id,
             participant: me.id,
             label: g.name,
-            is_shared: false,
+            recommended: false,
             checked: false,
             from_gear: g.id
           });
@@ -293,28 +406,128 @@ export async function POST({ params, request, locals, url }) {
 
       case 'pack_toggle': {
         const item = await inTrip('packing_items', body.itemId);
-        // Anyone can tick a shared item; a personal item only by its owner (or an organizer).
-        if (!item.is_shared && item.participant && item.participant !== me.id && !isOrganizer) {
-          throw error(403, "That's someone else's packing item");
+        // Your bag is yours — only you (or an organizer) may tick it.
+        if (!canTogglePacking(item, me.id, isOrganizer)) {
+          throw error(403, "That's in someone else's bag");
         }
         await pb.collection('packing_items').update(item.id, { checked: !item.checked });
         break;
       }
 
+      // Add to your own pack. Always personal now — anything meant for the crew
+      // goes on the public list instead (gear_add, or pack_share below).
       case 'pack_add': {
-        // Accept one (`label`) or many (`labels`), e.g. a pasted list.
-        const raw = Array.isArray(body.labels) ? body.labels : [body.label];
-        const labels = raw.map((/** @type {any} */ l) => String(l ?? '').trim().slice(0, 200)).filter(Boolean).slice(0, 50);
-        if (!labels.length) throw error(400, 'Label required');
-        const isShared = !!body.isShared;
-        for (const label of labels) {
+        for (const label of labelList(body)) {
           await pb.collection('packing_items').create({
             trip: trip.id,
             label,
-            is_shared: isShared,
+            recommended: false,
             checked: false,
-            participant: isShared ? null : me.id
+            participant: me.id
           });
+        }
+        break;
+      }
+
+      // Organizer suggestions. These aren't anybody's items yet — they're a
+      // template that shows as a ghost row in every member's pack until adopted.
+      case 'recommend_add': {
+        if (!canRecommend(isOrganizer)) throw error(403, 'Only organizers can recommend items');
+        for (const label of labelList(body)) {
+          await pb.collection('packing_items').create({
+            trip: trip.id,
+            label,
+            recommended: true,
+            checked: false,
+            participant: null
+          });
+        }
+        break;
+      }
+
+      // Withdraw a suggestion. Copies people have already adopted are THEIRS and
+      // stay put (from_recommendation is a non-cascading link, by design).
+      case 'recommend_remove': {
+        if (!canRecommend(isOrganizer)) throw error(403, 'Only organizers can recommend items');
+        const rec = await inTrip('packing_items', String(body.itemId ?? ''));
+        if (!rec.recommended) throw error(400, "That's not a recommendation");
+        await pb.collection('packing_items').delete(rec.id);
+        break;
+      }
+
+      // Take up a suggestion: it becomes a real item in your pack, and stops
+      // being suggested to you (but stays on offer to everyone else).
+      case 'pack_adopt': {
+        const rec = await inTrip('packing_items', String(body.itemId ?? ''));
+        if (!rec.recommended) throw error(400, "That's not a recommendation");
+        const already = await firstOrNull(
+          'packing_items',
+          pb.filter('from_recommendation = {:r} && participant = {:p}', { r: rec.id, p: me.id })
+        );
+        if (!already) {
+          await pb.collection('packing_items').create({
+            trip: trip.id,
+            label: rec.label,
+            recommended: false,
+            checked: false,
+            participant: me.id,
+            from_recommendation: rec.id
+          });
+        }
+        break;
+      }
+
+      // The eye: put one of your items on the public list so the crew can see
+      // you've got it covered. This is the claim bridge run backwards — it
+      // creates a public item already claimed by you, and links your personal row
+      // to it with `from_gear`, exactly as claiming public gear does in reverse.
+      case 'pack_share': {
+        const item = await inTrip('packing_items', String(body.itemId ?? ''));
+        if (item.recommended) throw error(400, 'Adopt it first, then share it');
+        if (item.participant !== me.id) throw error(403, "That's in someone else's pack");
+        if (item.from_gear) break; // already public
+
+        const g = await pb.collection('gear_items').create({
+          trip: trip.id,
+          name: item.label,
+          qty_needed: 1,
+          created_by: me.id
+        });
+        await pb
+          .collection('gear_claims')
+          .create({ gear_item: g.id, participant: me.id, qty_claimed: 1 });
+        await pb.collection('packing_items').update(item.id, { from_gear: g.id });
+        break;
+      }
+
+      // Eye off: take it back off the public list. Only tears down the public
+      // item if you're its sole claimer — if someone else has since signed up to
+      // bring one too, the group still needs it, so it stays.
+      case 'pack_unshare': {
+        const item = await inTrip('packing_items', String(body.itemId ?? ''));
+        if (item.participant !== me.id) throw error(403, "That's in someone else's pack");
+        if (!item.from_gear) break; // wasn't public
+
+        const gearId = item.from_gear;
+        await pb.collection('packing_items').update(item.id, { from_gear: null });
+
+        const mine = await firstOrNull(
+          'gear_claims',
+          pb.filter('gear_item = {:g} && participant = {:p}', { g: gearId, p: me.id })
+        );
+        if (mine) await pb.collection('gear_claims').delete(mine.id).catch(() => {});
+
+        const others = await pb
+          .collection('gear_claims')
+          .getFullList({ filter: pb.filter('gear_item = {:g}', { g: gearId }) })
+          .catch(() => []);
+        if (!others.length) {
+          const g = await pb.collection('gear_items').getOne(gearId).catch(() => null);
+          // Only remove it if it existed purely as your offer. If the group had
+          // asked for it independently, the request outlives your withdrawal.
+          if (g && g.created_by === me.id) {
+            await pb.collection('gear_items').delete(gearId).catch(() => {});
+          }
         }
         break;
       }
@@ -697,24 +910,69 @@ export async function POST({ params, request, locals, url }) {
       // Email someone the invite link. Gated like sharing the link (invite_visibility):
       // everyone may invite unless it's organizers-only. Body is fixed (no injected
       // content) so the endpoint can't be used as a spam relay.
+      //
+      // The invite is RECORDED as well as sent — otherwise an emailed invite left
+      // no trace anywhere and the crew had no way to see who was still outstanding.
       case 'invite_email': {
         if (!isOrganizer && (trip.invite_visibility || 'everyone') === 'organizers') {
           throw error(403, 'Only organizers can invite to this trip');
         }
         if (!isMailConfigured()) throw error(400, 'Email invites are not set up');
-        const to = String(body.email ?? '').trim().slice(0, 254);
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) throw error(400, 'Enter a valid email address');
-        const inviteUrl = `${url.origin}/${trip.share_token}`;
+        const to = inviteEmail(body.email);
         try {
           await sendInviteEmail({
             to,
             tripName: trip.name,
             inviterName: me.display_name || 'Someone',
-            inviteUrl
+            inviteUrl: joinUrl()
           });
         } catch (/** @type {any} */ e) {
           throw error(502, 'Could not send the email — check the address and try again');
         }
+        // Only recorded once the send succeeded, so a listed invite always means
+        // "we actually emailed them".
+        await upsertInvite(to, 'guest', { sent: true });
+        break;
+      }
+
+      // Send an outstanding invite again (the recipient lost it / it went to spam).
+      // Gated the same way as issuing one; refreshes `invited_by` to whoever resent.
+      case 'resend_invite': {
+        if (!isOrganizer && (trip.invite_visibility || 'everyone') === 'organizers') {
+          throw error(403, 'Only organizers can invite to this trip');
+        }
+        if (!isMailConfigured()) throw error(400, 'Email invites are not set up');
+        const inv = await pb
+          .collection('invites')
+          .getOne(String(body.inviteId ?? ''))
+          .catch(() => null);
+        if (!inv || inv.trip !== trip.id) throw error(404, 'That invite is no longer outstanding');
+
+        const last = inv.last_sent ? new Date(inv.last_sent).getTime() : 0;
+        const since = Date.now() - last;
+        if (last && Number.isFinite(last) && since < RESEND_COOLDOWN_MS) {
+          const mins = Math.ceil((RESEND_COOLDOWN_MS - since) / 60000);
+          throw error(429, `That invite just went out — try again in ${mins} min.`);
+        }
+
+        try {
+          await sendInviteEmail({
+            to: inv.email,
+            tripName: trip.name,
+            inviterName: me.display_name || 'Someone',
+            inviteUrl: joinUrl()
+          });
+        } catch (/** @type {any} */ e) {
+          throw error(502, 'Could not send the email — try again in a moment');
+        }
+        // Same provenance rule as upsertInvite: a non-organizer resending must
+        // not overwrite an organizer's vouching.
+        await pb
+          .collection('invites')
+          .update(inv.id, {
+            last_sent: new Date().toISOString(),
+            ...(isOrganizer ? { invited_by: actorId } : {})
+          });
         break;
       }
 
@@ -724,18 +982,10 @@ export async function POST({ params, request, locals, url }) {
       // matters, so a failed/absent email doesn't fail the op.
       case 'invite_organizer': {
         if (!isOrganizer) throw error(403, 'Only organizers can invite co-organizers');
-        const email = String(body.email ?? '').trim().toLowerCase().slice(0, 254);
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw error(400, 'Enter a valid email address');
-
-        // Upsert one invite per (trip, email).
-        const existing = await pb
-          .collection('invites')
-          .getList(1, 1, { filter: pb.filter('trip = {:t} && email = {:e}', { t: trip.id, e: email }) });
-        if (existing.items[0]) {
-          await pb.collection('invites').update(existing.items[0].id, { role: 'organizer', invited_by: locals.user.id });
-        } else {
-          await pb.collection('invites').create({ trip: trip.id, email, role: 'organizer', invited_by: locals.user.id });
-        }
+        const email = inviteEmail(body.email);
+        // The grant is what matters here, so the row goes in first and a failed
+        // (or unconfigured) email doesn't fail the op.
+        const inviteId = await upsertInvite(email, 'organizer');
 
         let emailed = false;
         if (isMailConfigured()) {
@@ -744,9 +994,10 @@ export async function POST({ params, request, locals, url }) {
               to: email,
               tripName: trip.name,
               inviterName: me.display_name || 'Someone',
-              inviteUrl: `${url.origin}/${trip.share_token}`
+              inviteUrl: joinUrl()
             });
             emailed = true;
+            await pb.collection('invites').update(inviteId, { last_sent: new Date().toISOString() });
           } catch (_) {
             /* invite still stands; organizer can share the link manually */
           }

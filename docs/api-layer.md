@@ -41,7 +41,7 @@ tripwala/
 │       ├── pocketbase.ts        # client factory w/ auth contexts
 │       ├── schemas.ts           # zod input schemas (boundary validation)
 │       ├── tokens.ts            # secure share_token / owner_token generation
-│       └── services/            # trips.ts, gear.ts, meals.ts, packing.ts, ...
+│       └── services/            # trips.ts, bring.ts (gear + packs), meals.ts, ...
 ├── web/                         # imports @walaware/tripwala-core
 ├── mcp/                         # @walaware/tripwala-mcp — imports @walaware/tripwala-core
 └── pocketbase/

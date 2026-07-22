@@ -5,6 +5,7 @@
 // but grants no access until approved.
 
 import { avatarUrl } from './userAvatar.js';
+import { displayName } from '../displayName.js';
 
 /**
  * Whether an invite token grants join capability for a trip (#2). The bare
@@ -82,11 +83,13 @@ export async function joinTrip(pb, trip, user, opts = {}) {
     }
   }
 
-  // Fresh link-join: pending only if approval is required AND they weren't
-  // explicitly invited (the creator and invitees bypass the queue).
+  // Fresh link-join: pending only if approval is required AND nobody with the
+  // standing to vouch invited them (the creator and vouched invitees bypass the
+  // queue).
+  const vouched = await inviteBypassesApproval(pb, trip.id, invite);
   const needsApproval =
     !isCreator &&
-    !invite &&
+    !vouched &&
     !opts.skipApproval &&
     (trip.join_policy || 'instant') === 'approval';
 
@@ -124,6 +127,31 @@ export async function findInvite(pb, tripId, email) {
   }
 }
 
+/**
+ * Whether an email invite vouches for its recipient strongly enough to skip the
+ * approval queue. Co-organizer invites always do. A plain guest invite only does
+ * if an organizer sent it — otherwise, on an `approval` trip, any member could
+ * email-invite straight past the organizers' queue.
+ *
+ * @param {import('pocketbase').default} pb superuser client
+ * @param {string} tripId
+ * @param {any} invite the `invites` row, or null
+ * @returns {Promise<boolean>}
+ */
+async function inviteBypassesApproval(pb, tripId, invite) {
+  if (!invite) return false;
+  if (invite.role === 'organizer') return true;
+  if (!invite.invited_by) return false;
+  try {
+    const res = await pb.collection('participants').getList(1, 1, {
+      filter: pb.filter('trip = {:t} && user = {:u}', { t: tripId, u: invite.invited_by })
+    });
+    return res.items[0]?.role === 'organizer';
+  } catch (_) {
+    return false; // unknown inviter — fall back to the queue
+  }
+}
+
 /** Delete an applied invite (best-effort). @param {any} pb @param {any} invite */
 async function consumeInvite(pb, invite) {
   if (!invite) return;
@@ -135,19 +163,32 @@ async function consumeInvite(pb, invite) {
 }
 
 /**
- * Outstanding co-organizer invites on a trip — shown to organizers so they can
- * see who's been invited and revoke if needed.
+ * Outstanding email invites on a trip (both plain guest invites and co-organizer
+ * invites) — the "invited, not joined yet" column of the people surface. Carries
+ * who sent it and when, so the crew can see a stale invite and resend or revoke.
  *
  * @param {import('pocketbase').default} pb superuser client
  * @param {string} tripId
- * @returns {Promise<Array<{ id: string, email: string, role: string }>>}
+ * @returns {Promise<Array<{ id: string, email: string, role: string, invitedBy: string | null, created: string, lastSent: string }>>}
  */
 export async function listInvites(pb, tripId) {
   try {
-    const all = await pb
-      .collection('invites')
-      .getFullList({ filter: pb.filter('trip = {:t}', { t: tripId }), sort: 'created' });
-    return all.map((i) => ({ id: i.id, email: i.email, role: i.role || 'guest' }));
+    const all = await pb.collection('invites').getFullList({
+      filter: pb.filter('trip = {:t}', { t: tripId }),
+      sort: 'created',
+      expand: 'invited_by'
+    });
+    return all.map((i) => {
+      const by = i.expand?.invited_by;
+      return {
+        id: i.id,
+        email: i.email,
+        role: i.role || 'guest',
+        invitedBy: by ? displayName(by.name || '', by) : null,
+        created: i.created || '',
+        lastSent: i.last_sent || ''
+      };
+    });
   } catch (_) {
     return [];
   }

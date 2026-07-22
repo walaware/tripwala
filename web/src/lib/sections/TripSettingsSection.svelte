@@ -43,7 +43,7 @@
   /** @type {Array<[string, string]>} */
   const HIDEABLE = [
     ['dates', '📅 Dates'], ['map', '🗺️ Map'], ['crew', '🙌 Members'], ['gear', '🎒 Gear'],
-    ['food', '🍳 Food'], ['packing', '🧳 Packing'], ['expenses', '💸 Expenses']
+    ['food', '🍳 Food'], ['expenses', '💸 Expenses']
   ];
 
   let busy = $state('');
