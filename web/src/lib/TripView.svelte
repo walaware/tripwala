@@ -241,11 +241,6 @@
     }
   }
 
-  async function demoteToIdea() {
-    if (manageBusy) return;
-    if (!confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
-    await manageAct('demote_to_idea', {}, 'demote');
-  }
   async function leaveTrip() {
     if (manageBusy) return;
     if (!confirm('Leave this trip? You can re-join later from the invite link.')) return;
@@ -261,7 +256,6 @@
   const manageActions = $derived([
     ...(ownerMode ? [{ icon: '✏️', label: 'Edit trip details', onClick: () => { editOpen = true; } }] : []),
     { icon: '📋', label: 'Clone this trip', onClick: () => { cloneForm?.requestSubmit(); } },
-    ...(ownerMode && trip.status !== 'idea' ? [{ icon: '💭', label: 'Move back to Ideas', onClick: demoteToIdea }] : []),
     ...(ownerMode ? [{ icon: '📷', label: 'Photo album', onClick: () => { photosOpen = true; } }] : []),
     { icon: '🚪', label: 'Leave this trip', onClick: leaveTrip, danger: true }
   ]);

@@ -1,12 +1,16 @@
 import { json, error } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
 import { loadTripByShareToken, requireActiveMembership, assertInTrip } from '$lib/server/tripAuthz.js';
+import { TRIP_STATUSES } from '$lib/server/createTrip.js';
 import { isMailConfigured, sendInviteEmail } from '$lib/server/mailer.js';
 import { immichConfigured, createTripAlbum, syncAlbumName } from '$lib/server/immich.js';
 import { parseAlbumLink } from '$lib/photoProviders.js';
 import { inviteFriendToTrip } from '$lib/server/invitations.js';
 import { isVisibility } from '$lib/visibility.js';
 import { claimQty, canTogglePacking, canRecommend } from '$lib/bring.js';
+import { unfurl } from '$lib/server/unfurl.js';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the itinerary image field cap
 
 // All trip mutations funnel through here. PocketBase collection rules are locked
 // to superuser-only, so the browser cannot write directly — it POSTs an op to
@@ -31,7 +35,24 @@ export async function POST({ params, request, locals, url }) {
   const trip = /** @type {any} */ (await loadTripByShareToken(pb, params.share_token));
   const { me, isOrganizer } = await requireActiveMembership(pb, trip, locals.user.id);
 
-  const body = await request.json().catch(() => ({}));
+  // Most ops send JSON; image uploads (itinerary media) send multipart/form-data
+  // (a File can't ride in JSON). Parse whichever shape arrived into a plain
+  // `body` + optional file — mirrors the /plan endpoint's location uploads.
+  const contentType = request.headers.get('content-type') || '';
+  /** @type {Record<string, any>} */
+  let body = {};
+  /** @type {File | null} */
+  let imageFile = null;
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData().catch(() => null);
+    if (form) {
+      for (const [k, v] of form.entries()) if (typeof v === 'string') body[k] = v;
+      const f = form.get('image');
+      if (f instanceof File && f.size > 0) imageFile = f;
+    }
+  } else {
+    body = await request.json().catch(() => ({}));
+  }
   const op = String(body.op ?? '');
 
   /** Fetch a row and assert it belongs to this trip (via its `trip` field). */
@@ -571,23 +592,38 @@ export async function POST({ params, request, locals, url }) {
         const time = String(body.time ?? '').trim().slice(0, 40);
         const place = String(body.place ?? '').trim().slice(0, 300);
         const note = String(body.note ?? '').trim().slice(0, 600);
+        const url = String(body.url ?? '').trim();
+        if (url && !/^https?:\/\/.+/i.test(url)) throw error(400, 'Links need http(s)://');
         const kind = body.kind === 'fixed' ? 'fixed' : 'flexible';
         const sameDay = pb.filter('trip = {:t} && date = {:d}', {
           t: trip.id,
           d: date ? `${date} 00:00:00.000Z` : ''
         });
         const count = (await pb.collection('itinerary_items').getList(1, 1, { filter: sameDay })).totalItems;
-        await pb.collection('itinerary_items').create({
+        const item = await pb.collection('itinerary_items').create({
           trip: trip.id,
           date: date ? `${date} 00:00:00.000Z` : '',
           time,
           place,
           note,
+          url: url.slice(0, 500),
           label,
           kind,
           sort_order: count,
           created_by: me.id
         });
+        // Unfurl the link ONCE, here, so the card has a preview on first render.
+        // Best-effort + SSRF-guarded inside unfurl(); mark fetched either way so a
+        // site with no OG tags isn't retried on every load (mirrors add_location).
+        if (url) {
+          const preview = await unfurl(url);
+          await pb.collection('itinerary_items').update(item.id, {
+            preview_image: preview?.image ?? '',
+            preview_title: preview?.title ?? '',
+            preview_description: preview?.description ?? '',
+            preview_fetched: true
+          });
+        }
         break;
       }
 
@@ -611,7 +647,32 @@ export async function POST({ params, request, locals, url }) {
           if (date && !DATE_ONLY.test(date)) throw error(400, 'Bad date');
           data.date = date ? `${date} 00:00:00.000Z` : '';
         }
+        // Link edits re-unfurl, but only when the URL actually changed — an
+        // unrelated label/time edit shouldn't refetch (or wipe) the preview.
+        let refetchUrl = null;
+        if (body.url !== undefined) {
+          const url = String(body.url ?? '').trim();
+          if (url && !/^https?:\/\/.+/i.test(url)) throw error(400, 'Links need http(s)://');
+          data.url = url.slice(0, 500);
+          if (url !== (item.url || '')) {
+            // Clear the stale preview now; re-unfurl below if there's a new link.
+            data.preview_image = '';
+            data.preview_title = '';
+            data.preview_description = '';
+            data.preview_fetched = !url; // no link → nothing to fetch
+            refetchUrl = url || null;
+          }
+        }
         await pb.collection('itinerary_items').update(item.id, data);
+        if (refetchUrl) {
+          const preview = await unfurl(refetchUrl);
+          await pb.collection('itinerary_items').update(item.id, {
+            preview_image: preview?.image ?? '',
+            preview_title: preview?.title ?? '',
+            preview_description: preview?.description ?? '',
+            preview_fetched: true
+          });
+        }
         break;
       }
 
@@ -620,6 +681,31 @@ export async function POST({ params, request, locals, url }) {
         const item = await inTrip('itinerary_items', String(body.itemId ?? ''));
         if (item.created_by !== me.id && !isOrganizer) throw error(403, 'Only the person who added this (or an organizer) can remove it');
         await pb.collection('itinerary_items').delete(item.id);
+        break;
+      }
+
+      // Upload (or replace) an item's picture — multipart, image only. Allowed
+      // for the item's creator or an organizer. Overrides the link preview.
+      case 'itin_item_image': {
+        const item = await inTrip('itinerary_items', String(body.itemId ?? ''));
+        if (item.created_by !== me.id && !isOrganizer) throw error(403, 'Only the person who added this (or an organizer) can edit it');
+        if (!imageFile) throw error(400, 'Choose an image first');
+        if (!imageFile.type.startsWith('image/')) throw error(400, "That doesn't look like an image");
+        if (imageFile.size > MAX_IMAGE_BYTES) throw error(400, 'Image must be under 5 MB');
+        const fd = new FormData();
+        fd.append('image', imageFile, imageFile.name || 'photo');
+        try {
+          await pb.collection('itinerary_items').update(item.id, fd);
+        } catch (_) {
+          throw error(400, 'Could not save that image — try a different one');
+        }
+        break;
+      }
+
+      case 'itin_item_image_remove': {
+        const item = await inTrip('itinerary_items', String(body.itemId ?? ''));
+        if (item.created_by !== me.id && !isOrganizer) throw error(403, 'Only the person who added this (or an organizer) can edit it');
+        await pb.collection('itinerary_items').update(item.id, { image: null });
         break;
       }
 
@@ -1073,6 +1159,29 @@ export async function POST({ params, request, locals, url }) {
       case 'demote_to_idea': {
         if (!isOrganizer) throw error(403, 'Only organizers can change the trip stage');
         if (trip.status !== 'idea') await pb.collection('trips').update(trip.id, { status: 'idea' });
+        break;
+      }
+
+      // Single owner-facing status control (Trip settings → Stage). Moves the
+      // trip to any lifecycle stage in either direction: idea → planning →
+      // confirmed → completed and back. Supersedes the one-way demote_to_idea.
+      // Organizer only; an unknown value is rejected rather than silently set.
+      case 'set_status': {
+        if (!isOrganizer) throw error(403, 'Only organizers can change the trip stage');
+        const s = String(body.status ?? '');
+        if (!TRIP_STATUSES.includes(s)) throw error(400, 'Bad status');
+        if (trip.status !== s) await pb.collection('trips').update(trip.id, { status: s });
+        break;
+      }
+
+      // Permanently delete the trip and everything under it. Every collection's
+      // `trip` relation is cascadeDelete:true (see migrations), so removing the
+      // trip row cascades to participants, itinerary, gear, packing, meals,
+      // expenses, pins, bookings, cities, invites and notifications. Organizer
+      // only — irreversible, so the client confirms first.
+      case 'delete_trip': {
+        if (!isOrganizer) throw error(403, 'Only organizers can delete the trip');
+        await pb.collection('trips').delete(trip.id);
         break;
       }
 

@@ -80,12 +80,28 @@
     }
   }
 
-  // Move the trip back to the Ideas wishlist (status='idea'). Reopens the
-  // planning canvas; reversible via "promote" on the Ideas page.
-  async function demoteToIdea() {
+  // Single status control (Stage & sections). Moves the trip to any lifecycle
+  // stage. Moving back to 'idea' drops it off the dated dashboard and reopens
+  // the planning canvas, so it gets a reassuring confirm; the rest are cheap.
+  /** @param {string} status */
+  async function setStage(status) {
+    if (busy || status === (trip.status || 'confirmed')) return;
+    if (status === 'idea' && !confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
+    await act('set_status', { status }, 'stage');
+  }
+
+  // Permanently delete the trip and everything under it (cascades server-side),
+  // then bounce home. Irreversible, so double-confirm before firing.
+  async function deleteTrip() {
     if (busy) return;
-    if (!confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
-    await act('demote_to_idea', {}, 'demote');
+    if (!confirm(`Delete "${trip.name}" permanently? This removes the itinerary, gear, expenses, photo links and everyone's data for this trip. This cannot be undone.`)) return;
+    busy = 'delete';
+    try {
+      await tripAction(shareToken, { op: 'delete_trip' });
+      await goto('/');
+    } catch (_) {
+      busy = '';
+    }
   }
 
   const hidden = $derived(new Set(trip.hidden_sections ?? []));
@@ -106,7 +122,10 @@
   /** @param {string} key */
   const toggler = (key) => (/** @type {boolean} */ open) => (openGroup = open ? key : '');
 
-  const stageShown = $derived(ownerMode && (trip.status !== 'idea' || hiddenList.length > 0));
+  // Always available to owners: this is the one home for changing the trip's
+  // stage and for deleting it, regardless of the current stage.
+  const stageShown = $derived(ownerMode);
+  const STAGE_LABELS = { idea: 'Idea', planning: 'In planning', confirmed: 'Confirmed', completed: 'Completed' };
 
   const inviteHint = $derived(
     ownerMode
@@ -122,7 +141,10 @@
   );
   const photoHint = $derived((trip.photo_album_url || '').trim() ? 'Album linked' : 'No album yet');
   const stageHint = $derived(
-    hiddenList.length ? `${hiddenList.length} hidden section${hiddenList.length === 1 ? '' : 's'}` : 'Move back to Ideas'
+    [
+      STAGE_LABELS[/** @type {keyof typeof STAGE_LABELS} */ (trip.status)] || 'Confirmed',
+      hiddenList.length ? `${hiddenList.length} hidden` : ''
+    ].filter(Boolean).join(' · ')
   );
 </script>
 
@@ -195,7 +217,7 @@
 
     {#if stageShown}
       <SettingsGroup icon="🗂️" title="Stage & sections" hint={stageHint} open={openGroup === 'stage'} onToggle={toggler('stage')}>
-        <StageSections {trip} {hiddenList} {busy} {act} onDemote={demoteToIdea} />
+        <StageSections {trip} {hiddenList} {busy} {act} onSetStage={setStage} onDelete={deleteTrip} />
       </SettingsGroup>
     {/if}
   {/if}
