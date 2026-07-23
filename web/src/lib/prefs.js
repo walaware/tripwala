@@ -27,6 +27,27 @@ export function openMeteoUnit(/** @type {TempUnit} */ unit) {
   return unit === 'C' ? 'celsius' : 'fahrenheit';
 }
 
+/**
+ * Wind/precip/distance units follow the temperature pref: Celsius users get
+ * metric (km/h, mm, m), Fahrenheit users get imperial (mph, in, ft). Kept here
+ * so the whole app agrees on one "unit system" derived from the single stored
+ * temp_unit pref, rather than adding three more stored fields.
+ * @param {TempUnit} unit
+ */
+export function unitSystem(unit) {
+  const metric = unit === 'C';
+  return {
+    metric,
+    // Open-Meteo query values.
+    windQuery: metric ? 'kmh' : 'mph',
+    precipQuery: metric ? 'mm' : 'inch',
+    // Display labels.
+    windLabel: metric ? 'km/h' : 'mph',
+    precipLabel: metric ? 'mm' : 'in',
+    elevLabel: metric ? 'm' : 'ft'
+  };
+}
+
 /** @typedef {'apple' | 'google'} MapApp */
 
 /** The map app that "Navigate" links open. Default is Apple Maps — the app's

@@ -55,32 +55,42 @@ first (a Florida one, not the Angeles-NF backcountry spot).
 
 ---
 
-## Phase 2 — Backpacking overview surface (core)
+## Phase 2 — Backpacking overview surface (core) 🚧 (first cut built)
 
-A `BackpackingSection` (rail module, shown when `trip_type === 'backpacking'`)
-that turns the pinned point + dates into a backcountry briefing. **All free
-(Open-Meteo + NWS + sunrise-sunset), no key.**
+Turns the pinned point + dates into a backcountry briefing. **All free
+(Open-Meteo), no key.** First cut lives in the **Overview** (where weather
+already is), gated on `trip_type === 'backpacking'` + a pinned location; the
+compact `WeatherCard` still serves every other trip and the unpinned fallback.
 
-- **Hourly weather scrobbler (Windy-style).** Open-Meteo hourly for the trip
-  window: temperature, precipitation probability + amount, wind speed/gust,
-  cloud cover, and *apparent* temp. A draggable time slider scrubs a single
-  horizontal timeline; the map marker and a compact readout update as you
-  scrobble. Open-Meteo already returns all of this for the exact coordinate — the
-  work is the timeline UI, not the data.
-- **Elevation.** Fill `trips.elevation` lazily from Open-Meteo's elevation API
-  for the pinned point; show it in the briefing (and use it to caveat temps —
-  valley forecasts under-read a ridgeline camp).
-- **Daylight & turnaround.** Sunrise/sunset, civil twilight, and day length per
-  day (sunrise-sunset.org, free) → a "be-off-the-trail-by" turnaround hint.
-- **Backcountry warnings.** Derived, honest flags: overnight lows below freezing,
-  sustained/gusty wind, heavy precip, thunderstorm codes — the things that
-  change what you pack and whether you go.
-- **NWS alerts (US).** weather.gov point alerts (free, no key, US-only) rendered
-  as a dismissible banner: red-flag, winter-storm, flood watches/warnings.
+**Built (`web/src/lib/ui/BackpackingForecast.svelte`, logic in
+`web/src/lib/weather.js`, tested):**
 
-**Data/plumbing:** a server `weatherService` (cache by coord+day, respect
-provider rate limits) so the client isn't hammering upstreams through the trip
-page's short-poll. Follows the service-core pattern in `docs/api-layer.md`.
+- **Hourly weather scrobbler (Windy-style).** ✅ Open-Meteo hourly for the trip
+  window: temperature + *apparent* temp, precip probability + amount, wind
+  speed/gust, cloud cover. A draggable slider scrubs the timeline with a compact
+  readout; a precip-probability strip gives the "scan the timeline" cue.
+- **Elevation.** ✅ Shown in the header from the forecast response's grid-cell
+  elevation (imperial→ft / metric→m). *(Persisting to `trips.elevation` deferred.)*
+- **Daylight & turnaround.** ✅ Sunrise/sunset + day length per day (from
+  Open-Meteo daily; no extra provider needed). *(Explicit turnaround-time hint
+  deferred.)*
+- **Backcountry warnings.** ✅ Derived, honest flags: below-freezing / hard-freeze
+  lows, high wind (gusts), heavy rain/snow, thunderstorms — as a trip-level
+  summary banner + per-day chips. Unit-aware thresholds.
+- **Units.** ✅ One "unit system" derived from the temp pref (`$lib/prefs.js`
+  `unitSystem`): °F→mph/in/ft, °C→km/h/mm/m.
+
+**Deferred to a Phase 2 follow-up:**
+
+- **NWS alerts (US).** weather.gov point alerts (free, no key, US-only) — a
+  dismissible red-flag/winter-storm/flood banner.
+- **Map-marker sync.** Scrobbling moves the marker on the trip map.
+- **Dedicated rail section.** Promote from an Overview panel to a first-class
+  `BackpackingSection` in the rail/hub/nav (needs the section-registry wiring in
+  `tripSections.js` + `TripView.svelte`).
+- **Server `weatherService`.** Cache by coord+day + respect provider rate limits
+  (service-core pattern, `docs/api-layer.md`) once the client short-poll makes
+  direct fetches wasteful. Also persist `trips.elevation` lazily.
 
 ---
 

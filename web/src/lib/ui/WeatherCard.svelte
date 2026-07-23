@@ -8,6 +8,7 @@
   import { page } from '$app/state';
   import { tempUnit, openMeteoUnit } from '$lib/prefs.js';
   import { hasCoords } from '$lib/coords.js';
+  import { wmo } from '$lib/weather.js';
 
   /** @type {{ location?: string, startDate?: string, endDate?: string, lat?: number, lng?: number, placeName?: string }} */
   let { location = '', startDate = '', endDate = '', lat = 0, lng = 0, placeName = '' } = $props();
@@ -44,22 +45,6 @@
   // dependency. `reqId` supersedes in-flight fetches when inputs actually change.
   let lastKey = '';
   let reqId = 0;
-
-  // WMO weather code → [emoji, label]. Grouped to the buckets that matter.
-  /** @type {Record<number, [string, string]>} */
-  const WMO = {
-    0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Overcast'],
-    45: ['🌫️', 'Fog'], 48: ['🌫️', 'Fog'],
-    51: ['🌦️', 'Drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌦️', 'Drizzle'],
-    56: ['🌧️', 'Freezing drizzle'], 57: ['🌧️', 'Freezing drizzle'],
-    61: ['🌧️', 'Rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'],
-    66: ['🌧️', 'Freezing rain'], 67: ['🌧️', 'Freezing rain'],
-    71: ['🌨️', 'Snow'], 73: ['🌨️', 'Snow'], 75: ['❄️', 'Heavy snow'], 77: ['🌨️', 'Snow grains'],
-    80: ['🌦️', 'Showers'], 81: ['🌦️', 'Showers'], 82: ['⛈️', 'Violent showers'],
-    85: ['🌨️', 'Snow showers'], 86: ['❄️', 'Snow showers'],
-    95: ['⛈️', 'Thunderstorm'], 96: ['⛈️', 'Thunderstorm'], 99: ['⛈️', 'Thunderstorm']
-  };
-  const wmo = (/** @type {number} */ c) => WMO[c] ?? ['🌡️', ''];
 
   /** True if `start` is within the forecast horizon (and not long past). */
   function inWindow(/** @type {string} */ start) {
