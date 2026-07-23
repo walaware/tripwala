@@ -208,7 +208,7 @@
     </SettingsGroup>
 
     <SettingsGroup icon="✏️" title="Trip details" hint="Name, dates, description, safety" open={openGroup === 'details'} onToggle={toggler('details')}>
-      <TripDetailsForm {trip} {busy} {savedFlash} {act} />
+      <TripDetailsForm {shareToken} {trip} {busy} {savedFlash} {act} />
     </SettingsGroup>
 
     <SettingsGroup icon="📷" title="Photos" hint={photoHint} open={openGroup === 'photos'} onToggle={toggler('photos')}>

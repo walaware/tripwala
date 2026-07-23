@@ -1,19 +1,21 @@
 <script>
   import { Button, DateField } from '@walaware/design';
   import { inputClass, labelClass } from './styles.js';
+  import LocationPicker from './LocationPicker.svelte';
 
   /**
    * The organizer's edit-the-trip form. Seeded from the trip record and
    * re-seeded whenever it changes underneath us (another organizer saving).
    *
    * @type {{
+   *   shareToken: string,
    *   trip: any,
    *   busy: string,
    *   savedFlash: boolean,
    *   act: (op: string, payload?: Record<string, unknown>, tag?: string) => Promise<void>
    * }}
    */
-  let { trip, busy, savedFlash, act } = $props();
+  let { shareToken, trip, busy, savedFlash, act } = $props();
 
   const TYPES = [
     ['camping', '🏕️ Camping'], ['backpacking', '🎒 Backpacking'], ['road_trip', '🚗 Road trip'],
@@ -28,16 +30,20 @@
   /** @param {string} d */
   const ymd = (d) => (d || '').slice(0, 10);
 
-  let form = $state({ name: '', trip_type: '', location: '', start_date: '', end_date: '', description: '', emergency_info: '', expense_link: '', min_nights: 0 });
+  let form = $state({ name: '', trip_type: '', location: '', lat: 0, lng: 0, place_name: '', start_date: '', end_date: '', description: '', emergency_info: '', expense_link: '', min_nights: 0 });
   let seeded = '';
   $effect(() => {
-    const sig = `${trip.name}|${trip.start_date}|${trip.description}|${trip.emergency_info}|${trip.min_nights}`;
+    // `lat` in the signature re-seeds when another organizer pins a place.
+    const sig = `${trip.name}|${trip.start_date}|${trip.description}|${trip.emergency_info}|${trip.min_nights}|${trip.lat}`;
     if (sig !== seeded) {
       seeded = sig;
       form = {
         name: trip.name || '',
         trip_type: trip.trip_type || '',
         location: trip.location || '',
+        lat: trip.lat || 0,
+        lng: trip.lng || 0,
+        place_name: trip.place_name || '',
         start_date: ymd(trip.start_date),
         end_date: ymd(trip.end_date),
         description: descToText(trip.description),
@@ -47,6 +53,11 @@
       };
     }
   });
+
+  /** @param {{ label: string, lat: number, lng: number, placeName: string }} p */
+  const onPick = (p) => (form = { ...form, location: p.label, lat: p.lat, lng: p.lng, place_name: p.placeName });
+  /** Hand-editing the text drops the pin (coords no longer match the words). */
+  const onText = (/** @type {string} */ text) => (form = { ...form, location: text, lat: 0, lng: 0, place_name: '' });
 </script>
 
 <div class="flex flex-col gap-2.5">
@@ -54,19 +65,22 @@
     <label class={labelClass} for="ts-name">Trip name</label>
     <input id="ts-name" bind:value={form.name} maxlength="200" class={inputClass} />
   </div>
-  <div class="flex gap-2.5">
-    <div class="min-w-0 flex-1">
-      <label class={labelClass} for="ts-type">Type</label>
-      <select id="ts-type" bind:value={form.trip_type} class={inputClass}>
-        <option value="">Pick one…</option>
-        {#each TYPES as [v, l]}<option value={v}>{l}</option>{/each}
-      </select>
-    </div>
-    <div class="min-w-0 flex-1">
-      <label class={labelClass} for="ts-loc">Where</label>
-      <input id="ts-loc" bind:value={form.location} maxlength="300" class={inputClass} />
-    </div>
+  <div>
+    <label class={labelClass} for="ts-type">Type</label>
+    <select id="ts-type" bind:value={form.trip_type} class={inputClass}>
+      <option value="">Pick one…</option>
+      {#each TYPES as [v, l]}<option value={v}>{l}</option>{/each}
+    </select>
   </div>
+  <LocationPicker
+    {shareToken}
+    value={form.location}
+    lat={form.lat}
+    lng={form.lng}
+    placeName={form.place_name}
+    {onPick}
+    {onText}
+  />
   <DateField range bind:start={form.start_date} bind:end={form.end_date} startLabel="Start" endLabel="End" />
   <div>
     <label class={labelClass} for="ts-min-nights">Minimum nights</label>

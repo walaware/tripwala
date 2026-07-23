@@ -7,9 +7,10 @@
   import { fmtWeekday, fmtMonthDay } from '$lib/format.js';
   import { page } from '$app/state';
   import { tempUnit, openMeteoUnit } from '$lib/prefs.js';
+  import { hasCoords } from '$lib/coords.js';
 
-  /** @type {{ location?: string, startDate?: string, endDate?: string }} */
-  let { location = '', startDate = '', endDate = '' } = $props();
+  /** @type {{ location?: string, startDate?: string, endDate?: string, lat?: number, lng?: number, placeName?: string }} */
+  let { location = '', startDate = '', endDate = '', lat = 0, lng = 0, placeName = '' } = $props();
 
   // The viewer's temperature-unit preference (F/C). Anonymous share-link viewers
   // have no user → falls back to F.
@@ -73,14 +74,20 @@
     return delta >= -1 && delta <= 15;
   }
 
+  // Real, picked coordinates win: no geocoding, no "Big Pines → Florida" guess.
+  const pinned = $derived(hasCoords(lat, lng));
+
   $effect(() => {
     const loc = (location || '').trim();
     const start = startDate || '';
     const end = endDate || start;
     const u = unit;
+    const plat = lat;
+    const plng = lng;
+    const pinnedNow = pinned;
     // Skip when nothing that affects the forecast changed — keeps the already-
     // rendered card in place through the trip page's short-poll re-renders.
-    const key = `${loc}|${start}|${end}|${u}`;
+    const key = `${loc}|${start}|${end}|${u}|${pinnedNow ? `${plat},${plng}` : ''}`;
     if (key === lastKey) return;
     lastKey = key;
     // Each real fetch gets a monotonic id; async results only apply if theirs is
@@ -89,14 +96,15 @@
     // re-run, including the poll re-runs that early-return above, which would
     // abort a still-in-flight first fetch and leave the card blank forever.
     const myId = ++reqId;
-    if (!loc || !inWindow(start)) {
+    if ((!loc && !pinnedNow) || !inWindow(start)) {
       phase = 'idle';
       return;
     }
     phase = 'loading';
     // Open-Meteo's gazetteer matches place names, not "Place, ST" strings — so
     // try the full location, then fall back to the part before the first comma
-    // ("Yosemite Valley, CA" → "Yosemite Valley").
+    // ("Yosemite Valley, CA" → "Yosemite Valley"). Only used as a fallback when
+    // the trip has no pinned coordinates.
     /** @param {string} name */
     const geocode = async (name) => {
       const res = await fetch(
@@ -106,17 +114,25 @@
     };
     (async () => {
       try {
-        const head = loc.split(',')[0].trim();
-        const hit = (await geocode(loc)) || (head && head !== loc ? await geocode(head) : null);
-        if (myId !== reqId) return;
-        if (!hit) {
-          phase = 'idle';
-          return;
+        // A pinned trip forecasts its exact coordinates directly; otherwise fall
+        // back to geocoding the free-text name.
+        let coord = pinnedNow ? { latitude: plat, longitude: plng } : null;
+        let label = pinnedNow ? placeName : '';
+        if (!coord) {
+          const head = loc.split(',')[0].trim();
+          const hit = (await geocode(loc)) || (head && head !== loc ? await geocode(head) : null);
+          if (myId !== reqId) return;
+          if (!hit) {
+            phase = 'idle';
+            return;
+          }
+          coord = { latitude: hit.latitude, longitude: hit.longitude };
+          label = [hit.name, hit.admin1, hit.country_code].filter(Boolean).slice(0, 2).join(', ');
         }
         const sd = start.slice(0, 10);
         const ed = (end || start).slice(0, 10);
         const fc = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${hit.latitude}&longitude=${hit.longitude}` +
+          `https://api.open-meteo.com/v1/forecast?latitude=${coord.latitude}&longitude=${coord.longitude}` +
             `&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=${openMeteoUnit(u)}` +
             `&timezone=auto&start_date=${sd}&end_date=${ed}`
         ).then((r) => r.json());
@@ -129,7 +145,8 @@
         }));
         if (myId !== reqId) return;
         days = rows;
-        place = [hit.name, hit.admin1, hit.country_code].filter(Boolean).slice(0, 2).join(', ');
+        // Prefer the pinned label; fall back to the geocoder's, then the raw name.
+        place = (label || loc.split(',')[0]).slice(0, 60);
         phase = rows.length ? 'ready' : 'idle';
       } catch (_) {
         if (myId === reqId) phase = 'idle';

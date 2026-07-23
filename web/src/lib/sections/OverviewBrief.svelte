@@ -22,7 +22,14 @@
 {#if show}
   <Card>
     <LocationHeroCard location={trip.pickedLocation ?? null} />
-    <WeatherCard location={trip.location} startDate={trip.start_date} endDate={trip.end_date} />
+    <WeatherCard
+      location={trip.location}
+      lat={trip.lat}
+      lng={trip.lng}
+      placeName={trip.place_name}
+      startDate={trip.start_date}
+      endDate={trip.end_date}
+    />
     {#if hasDesc}
       <div
         class="mt-4 rounded-2xl bg-sand-100 p-4 font-body text-[13.5px] leading-relaxed text-cocoa-700 [&_a]:font-extrabold [&_a]:text-coral-700 [&_a]:underline [&_a]:underline-offset-2"

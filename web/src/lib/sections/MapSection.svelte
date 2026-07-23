@@ -10,6 +10,7 @@
   import { Card, Button } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { tripAction } from '$lib/tripClient.js';
+  import { hasCoords } from '$lib/coords.js';
 
   /**
    * @type {{
@@ -115,6 +116,12 @@
   }
 
   async function centerOnTripLocation() {
+    // A pinned trip centres on its exact coordinates — no re-geocoding, so the
+    // map lands on the same spot the weather forecast uses.
+    if (hasCoords(trip?.lat, trip?.lng)) {
+      if (map) map.setView([trip.lat, trip.lng], 11);
+      return;
+    }
     const loc = (trip?.location || '').trim();
     if (!loc) return;
     try {

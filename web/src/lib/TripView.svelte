@@ -454,7 +454,7 @@
 <!-- Trip-level manage surfaces reached from the header ⋯ menu. -->
 {#if ownerMode}
   <Modal open={editOpen} onClose={() => (editOpen = false)} title="Edit trip details" size="md">
-    <TripDetailsForm {trip} busy={manageBusy} {savedFlash} act={manageAct} />
+    <TripDetailsForm shareToken={trip.share_token} {trip} busy={manageBusy} {savedFlash} act={manageAct} />
   </Modal>
   <Modal open={photosOpen} onClose={() => (photosOpen = false)} title="Photo album" size="sm">
     <PhotoAlbum shareToken={trip.share_token} {trip} immichEnabled={data.immichEnabled ?? false} />

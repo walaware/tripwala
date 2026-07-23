@@ -147,6 +147,12 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       id: trip.id,
       name: trip.name,
       location: trip.location,
+      // Canonical coordinates from the location picker (0,0 = unset → weather/map
+      // fall back to geocoding the name). place_name is the picker's full label.
+      lat: trip.lat || 0,
+      lng: trip.lng || 0,
+      place_name: trip.place_name || '',
+      elevation: trip.elevation || 0,
       pickedLocation,
       start_date: trip.start_date,
       end_date: trip.end_date,

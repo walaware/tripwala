@@ -1,0 +1,228 @@
+# tripwala Backpacking Planner — Design & Roadmap
+
+> Status: **Phase 1 shipped** (accurate location + weather); Phases 2–6 are
+> **design**. The north star is an "AllTrails × Windy" surface for `trip_type:
+> backpacking` trips — accurate backcountry weather you can scrobble through
+> time, an elevation/route profile, and the safety layers a backcountry trip
+> actually needs. Built on the existing Leaflet map + Open-Meteo stack, adding a
+> keyed API only where free sources genuinely cap out.
+
+## Principles
+
+1. **Trip-type aware, not a separate app.** The planner is an enriched surface
+   that appears for backpacking (and, where sensible, camping/ski) trips. It
+   reuses the trip's crew, dates, map pins, and gear — it doesn't fork them.
+2. **Free-first, pay only where free caps out.** Everything critical ships on
+   OSM + Open-Meteo (no key). Two paid upgrades are worth it *later*: a topo
+   basemap and Windy-style animated weather layers (see §API landscape).
+3. **Safety is a feature.** Daylight/turnaround times, freeze/storm warnings,
+   NWS alerts, and (winter) avalanche danger are first-class, not decoration.
+4. **Self-host-friendly.** Prefer sources an operator can run themselves
+   (Overpass, Valhalla, OpenTopoData) so the app degrades gracefully with no
+   keys — same posture as `docs/ai-features.md`.
+5. **Graceful degradation.** No coordinates → no planner, just the normal trip.
+   No key → the free layer. A failed fetch is silent; the trip still works.
+
+---
+
+## Phase 1 — Accurate location & weather ✅ (shipped)
+
+The bug that started this: a trip's "Where" was **free text only**, and the
+weather + map surfaces re-geocoded that string at read time with Open-Meteo's
+`count=1` gazetteer — so "Big Pines" silently resolved to whichever match ranked
+first (a Florida one, not the Angeles-NF backcountry spot).
+
+**Fix — persist a confirmed point:**
+
+- `trips` gains `lat`, `lng`, `place_name`, `elevation`
+  (migration `1718605000_trip_coordinates.js`). `0,0` = "unset" (see
+  `$lib/coords.js` `hasCoords` — Null Island is open ocean, so it's a safe
+  sentinel).
+- The Trip-details "Where" field is now a **`LocationPicker`** that searches the
+  existing server-proxied Nominatim geocoder (members-only, rate-limited) and
+  lets the organizer **pin the exact place**, capturing lat/lng + a resolved
+  label. Hand-editing the text drops the pin (the words no longer match coords).
+- `WeatherCard` and `MapSection` **read the pinned coordinates directly** —
+  no geocoding, no guessing. Legacy trips with no pin fall back to the old
+  name-geocode path, so nothing regresses.
+
+**Follow-ups still open in Phase 1's spirit:**
+
+- Backfill: one-time job to pin existing trips whose `location` geocodes
+  unambiguously; leave ambiguous ones for the organizer to confirm.
+- Surface a subtle "is this the right spot?" nudge on trips that still rely on
+  the name-geocode fallback.
+
+---
+
+## Phase 2 — Backpacking overview surface (core)
+
+A `BackpackingSection` (rail module, shown when `trip_type === 'backpacking'`)
+that turns the pinned point + dates into a backcountry briefing. **All free
+(Open-Meteo + NWS + sunrise-sunset), no key.**
+
+- **Hourly weather scrobbler (Windy-style).** Open-Meteo hourly for the trip
+  window: temperature, precipitation probability + amount, wind speed/gust,
+  cloud cover, and *apparent* temp. A draggable time slider scrubs a single
+  horizontal timeline; the map marker and a compact readout update as you
+  scrobble. Open-Meteo already returns all of this for the exact coordinate — the
+  work is the timeline UI, not the data.
+- **Elevation.** Fill `trips.elevation` lazily from Open-Meteo's elevation API
+  for the pinned point; show it in the briefing (and use it to caveat temps —
+  valley forecasts under-read a ridgeline camp).
+- **Daylight & turnaround.** Sunrise/sunset, civil twilight, and day length per
+  day (sunrise-sunset.org, free) → a "be-off-the-trail-by" turnaround hint.
+- **Backcountry warnings.** Derived, honest flags: overnight lows below freezing,
+  sustained/gusty wind, heavy precip, thunderstorm codes — the things that
+  change what you pack and whether you go.
+- **NWS alerts (US).** weather.gov point alerts (free, no key, US-only) rendered
+  as a dismissible banner: red-flag, winter-storm, flood watches/warnings.
+
+**Data/plumbing:** a server `weatherService` (cache by coord+day, respect
+provider rate limits) so the client isn't hammering upstreams through the trip
+page's short-poll. Follows the service-core pattern in `docs/api-layer.md`.
+
+---
+
+## Phase 3 — Route & elevation profile (the "AllTrails" core)
+
+Give the trip an actual **route**, not just a point.
+
+- **GPX/KML import.** Members upload a track; parse client-side with
+  `@tmcw/togeojson`, decimate with `simplify-js`, render with `leaflet-gpx`.
+  Store the simplified GeoJSON on the trip.
+- **Elevation profile chart.** Sample elevation along the track (OpenTopoData
+  self-hosted, or its 1,000/day public API) → an AllTrails-style ascent/descent
+  profile with total gain/loss, distance, min/max elevation. Smooth before
+  summing gain (raw GPS elevation over-counts badly).
+- **Hover-linked map ↔ profile.** Scrubbing the profile moves a marker on the
+  map and vice-versa.
+- **Trailheads & waymarked routes (OSM).** Pull `route=hiking` relations + trail
+  POIs near the pin via Overpass; offer them as suggested pins / a "connect to a
+  known trail" affordance. This is the only *legal* third-party trail-geometry
+  source for an indie app (see §API landscape).
+
+---
+
+## Phase 4 — Backcountry map layers
+
+- **Topo basemap toggle.** Add a topo/terrain layer next to the current OSM
+  raster. Free start: **Thunderforest Outdoors** (150k tiles/mo free) and
+  **USGS Topo** (US, public domain). This is the single biggest *visual* jump
+  toward AllTrails quality.
+- **Avalanche danger overlay (winter, US).** Avalanche.org's free public GeoJSON
+  API → a danger-by-forecast-center layer for ski/winter backpacking trips.
+- **Water sources / campsites.** Overpass query for `amenity=drinking_water`,
+  springs, and designated campsites near the route — rendered as optional pins.
+
+---
+
+## Phase 5 — Planning intelligence & gear
+
+- **Condition-aware packing.** Cross the weather warnings with the existing
+  gear/"what to bring" surface: freezing lows → nudge insulation/bag rating;
+  heavy rain → shell + pack cover; high UV/exposure → sun protection.
+- **Permits & regulations.** A structured field for permit info / quota links /
+  bear-canister rules (manual entry first; automate per-park later).
+- **Daily plan from the route.** Suggest day splits from distance + elevation
+  gain and daylight (turnaround times), feeding the existing itinerary.
+
+---
+
+## Phase 6 — "Plus"-tier polish (later / paid)
+
+The AllTrails-Plus-flavored extras, gated behind real demand (and, where noted,
+a paid API):
+
+- **Offline maps.** Downloadable vector tiles for the route corridor
+  (**MapTiler** sells the vector data for on-prem/offline — a genuine
+  backcountry feature). Paid.
+- **Windy-grade animated weather layers.** The animated wind/precip *map* overlay
+  (the defining "Windy feel") via the **Windy Map Forecast API**. Paid — Windy's
+  free *point* tier returns deliberately obfuscated data, so this is the one
+  category where free genuinely caps out.
+- **Live tracking / "I'm safe" check-ins**, trip-report + photo recap wired into
+  the existing Wrapped surface, community route sharing.
+
+---
+
+## API landscape (researched 2026-07 — verify pricing before committing)
+
+**AllTrails has no public API** — its catalog/difficulty/reviews can't be
+licensed. Any "AllTrails-like" trail layer must be rebuilt from OSM + one of the
+sources below. The recommended stack is free/self-hostable with **two optional
+paid upgrades** (topo tiles, Windy layers).
+
+### Trail geometry & metadata
+Only two sources legally expose geometry to an indie app:
+- **OSM `route=hiking` via Overpass** — full geometry, `sac_scale` (difficulty),
+  `surface`. Free, ODbL (attribute + share-alike). Self-host Overpass/PBF for
+  volume. **← primary.**
+- **Waymarked Trails** (hiking.waymarkedtrails.org) — renders OSM hiking routes,
+  per-route pages, **GPX/KML export**, open API, **fully self-hostable**. Free.
+- Avoid: **Komoot/Wikiloc** (partner/scrape-only — ToS), **Trailforks**
+  (share-alike license forbids monetizing; approval rarely granted),
+  **Outdooractive** (enterprise contract), **onX** (no API).
+
+### Routing & elevation profiles
+- **OpenRouteService** — hiking routing **+ elevation-along-route** in one call;
+  real self-serve free tier (~2k directions/day), self-hostable; paid from
+  ~€20/mo. **← recommended for live route-planning.**
+- **Valhalla (self-hosted)** — most resource-efficient self-host for foot
+  routing + elevation once you outgrow ORS; infra cost only.
+- **OpenTopoData (self-host / 1k-per-day public)** — elevation sampling for
+  imported GPX without burning weather-API quota. **← recommended for profiles.**
+- **Open-Meteo Elevation** — free point elevation (Phase 2 already uses it);
+  non-commercial. Google Elevation / Mapbox Terrain are keyed alternatives.
+
+### Backcountry map tiles
+- **Thunderforest Outdoors** — hiking topo w/ trails + contours; **150k
+  tiles/mo free**, then Solo $125/mo. Closest off-the-shelf to the AllTrails
+  look. **← start here (free).**
+- **MapTiler Outdoor/Topo** — 100k loads/mo free; cheaper scaling than
+  Thunderforest and **sells vector data for offline/self-host**. **← the paid
+  upgrade worth buying** (unlocks Phase 6 offline maps).
+- **USGS Topo** — free, public domain, US-only. Good free layer toggle.
+- **Stadia Maps** (Stamen Terrain) — free non-commercial tier, low-cost paid.
+- Avoid depending on **OpenTopoMap** (no SLA, dormant since ~2024) — optional
+  extra layer only.
+
+### Weather (Windy quality)
+- **Open-Meteo** — base hourly engine (already in use); free, non-commercial,
+  generous, no key.
+- **NWS / weather.gov** — **free, no key**, US-only official point forecasts **+
+  alerts**. **← add for US safety alerts.**
+- **Avalanche.org public API** — free GeoJSON danger layer (US). **← add for
+  winter.**
+- **sunrise-sunset.org** — free daylight/twilight times.
+- **Windy Point Forecast** — free tier returns obfuscated data (dev-only); real
+  data is **Professional €990/yr**. **Windy Map Forecast** = the animated map
+  layers (paid). **← Phase 6 only, on demand.**
+- **OpenWeather One Call** (1k/day free) — cheapest *global* alerts add-on if we
+  ever need non-US coverage NWS can't give.
+
+### GPX handling (all free OSS)
+`@tmcw/togeojson` (parse) → `simplify-js` (decimate) → `leaflet-gpx` (render +
+distance/time/elevation stats) → a box-average smoothing pass before summing
+elevation gain. `gpxjs` is an alternative with built-in distance/elevation/slope
+if we want stats in our own data model rather than tied to the map.
+
+### The two paid upgrades most worth buying (when traffic justifies it)
+1. **MapTiler** (or Thunderforest Outdoors) — topo/contour basemap; MapTiler
+   additionally unlocks offline vector maps. Biggest visual jump; free tier to
+   start.
+2. **Windy Map Forecast API** — animated weather map layers; the one category
+   where free genuinely caps out.
+
+---
+
+## Open questions for the product owner
+
+- **Gate by trip type or a toggle?** Auto-show for `backpacking` only, or a
+  per-trip "backcountry mode" the organizer flips (so a `camping`/`ski` trip can
+  opt in)?
+- **Which paid upgrade, if any, ships first** — topo tiles (visual) or Windy
+  layers (weather)? Both have free starting tiers except Windy's map layer.
+- **US-only vs global for alerts.** NWS is free but US-only; global alerts need a
+  keyed provider. Ship US-first?
+- **How much route-building in-app** vs. import-a-GPX-only for the first cut?

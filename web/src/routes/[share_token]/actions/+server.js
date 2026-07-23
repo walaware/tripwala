@@ -9,6 +9,7 @@ import { inviteFriendToTrip } from '$lib/server/invitations.js';
 import { isVisibility } from '$lib/visibility.js';
 import { claimQty, canTogglePacking, canRecommend } from '$lib/bring.js';
 import { unfurl } from '$lib/server/unfurl.js';
+import { hasCoords, clampNum } from '$lib/coords.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the itinerary image field cap
 
@@ -843,10 +844,23 @@ export async function POST({ params, request, locals, url }) {
           ? `<p>${descText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`
           : '';
         const minNights = Math.max(0, Math.min(365, Math.round(Number(body.min_nights) || 0)));
+        // Canonical coordinates from the location picker (#weather-accuracy).
+        // Both blank/invalid → store 0,0 = "unset" (weather falls back to the
+        // legacy name-geocode). place_name only kept when the pin is real.
+        const lat = clampNum(body.lat, -90, 90);
+        const lng = clampNum(body.lng, -180, 180);
+        const pinned = hasCoords(lat, lng);
+        // Clear the cached elevation whenever the pin moves or is dropped, so the
+        // backpacking surface refills it lazily for the new point (0 = "unknown").
+        const pinMoved = !pinned || trip.lat !== lat || trip.lng !== lng;
         await pb.collection('trips').update(trip.id, {
           name,
           trip_type: t(body.trip_type).slice(0, 30),
           location: t(body.location).slice(0, 300),
+          lat: pinned ? lat : 0,
+          lng: pinned ? lng : 0,
+          place_name: pinned ? t(body.place_name).slice(0, 300) : '',
+          ...(pinMoved ? { elevation: 0 } : {}),
           start_date: start ? `${start} 00:00:00.000Z` : '',
           end_date: end ? `${end} 00:00:00.000Z` : '',
           description: descHtml,

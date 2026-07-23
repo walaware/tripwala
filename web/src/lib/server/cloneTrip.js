@@ -22,6 +22,11 @@ export async function cloneTrip(pb, source, user, joinTrip) {
   const base = {
     name: `${source.name} (copy)`.slice(0, 200),
     location: source.location || '',
+    // Carry the pinned place so the copy's weather/map land right without re-picking.
+    lat: source.lat || 0,
+    lng: source.lng || 0,
+    place_name: source.place_name || '',
+    elevation: source.elevation || 0,
     trip_type: source.trip_type || '',
     description: source.description || '',
     emergency_info: source.emergency_info || '',
