@@ -121,7 +121,7 @@ export async function createTrip(pb, user, input) {
   if (albumRequested && (await immichConfigured())) {
     try {
       const { albumId, albumUrl } = await createTripAlbum(trip);
-      await pb.collection('trips').update(trip.id, { immich_album_id: albumId, immich_album_url: albumUrl });
+      await pb.collection('trips').update(trip.id, { photo_album_id: albumId, photo_album_url: albumUrl });
       albumCreated = true;
     } catch (_) {
       // non-fatal; surfaced as albumCreated:false so the UI can hint

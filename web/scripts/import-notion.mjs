@@ -37,7 +37,7 @@ const raw = args.bundles
   ? JSON.parse(await readFile(args.bundles, 'utf8'))
   : await loadBundles(args.dir, args.limit);
 const bundles = (args.limit ? raw.slice(0, args.limit) : raw).map((b) => ({
-  itinerary: [], warnings: [], immich_album_url: '', location: '', description: '',
+  itinerary: [], warnings: [], photo_album_url: '', location: '', description: '',
   trip_type: 'other', status: 'completed', ...b
 }));
 console.log(`Loaded ${bundles.length} trip(s) from ${args.bundles || args.dir}\n`);
@@ -77,7 +77,7 @@ async function apply(bundles) {
       name: b.name, location: b.location,
       start_date: toPb(b.start_date), end_date: toPb(b.end_date),
       description: b.description, trip_type: b.trip_type, status: b.status,
-      immich_album_url: b.immich_album_url, import_source: 'notion', external_id: b.externalId
+      photo_album_url: b.photo_album_url, import_source: 'notion', external_id: b.externalId
     };
     let trip;
     if (existing) {

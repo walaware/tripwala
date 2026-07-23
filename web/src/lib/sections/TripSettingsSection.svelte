@@ -120,7 +120,7 @@
       invites.length ? `${invites.length} invited` : ''
     ].filter(Boolean).join(' · ')
   );
-  const photoHint = $derived((trip.immich_album_url || '').trim() ? 'Album linked' : 'No album yet');
+  const photoHint = $derived((trip.photo_album_url || '').trim() ? 'Album linked' : 'No album yet');
   const stageHint = $derived(
     hiddenList.length ? `${hiddenList.length} hidden section${hiddenList.length === 1 ? '' : 's'}` : 'Move back to Ideas'
   );

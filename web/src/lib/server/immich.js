@@ -81,25 +81,9 @@ export async function createTripAlbum(trip) {
  * Rename an existing album to match the trip's current "Type - Name" convention.
  * No-op if the trip has no linked album. Best-effort: callers may ignore errors
  * so a rename failure never blocks saving the trip.
- * @param {{ immich_album_id?: string, name?: string, trip_type?: string | null }} trip
+ * @param {{ photo_album_id?: string, name?: string, trip_type?: string | null }} trip
  */
 export async function syncAlbumName(trip) {
-  if (!trip?.immich_album_id) return;
-  await api('PATCH', `/api/albums/${trip.immich_album_id}`, { albumName: albumName(trip) });
-}
-
-/**
- * Validate a pasted Immich share link and extract its key. Accepts a full URL
- * like https://photos.example/share/<key> or a bare key. Returns null if it
- * doesn't look like one.
- * @param {string} input
- * @returns {{ key: string, url: string } | null}
- */
-export function parseShareLink(input) {
-  const s = String(input || '').trim();
-  if (!s) return null;
-  const m = s.match(/\/share\/([A-Za-z0-9_-]+)\/?$/);
-  const key = m ? m[1] : /^[A-Za-z0-9_-]{10,}$/.test(s) ? s : null;
-  if (!key) return null;
-  return { key, url: s.startsWith('http') ? s.replace(/\/+$/, '') : '' };
+  if (!trip?.photo_album_id) return;
+  await api('PATCH', `/api/albums/${trip.photo_album_id}`, { albumName: albumName(trip) });
 }

@@ -279,7 +279,7 @@ export function buildBundle({ row, markdown, externalId }) {
     description: descriptionHtml,
     trip_type: mapTripType(typeRaw),
     status,
-    immich_album_url: /^https?:\/\//i.test(immich) ? immich : '',
+    photo_album_url: /^https?:\/\//i.test(immich) ? immich : '',
     itinerary: items,
     warnings: [
       ...(name ? [] : ['missing Name']),

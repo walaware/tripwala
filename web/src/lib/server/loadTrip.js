@@ -167,11 +167,11 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       invite_visibility: trip.invite_visibility || 'everyone',
       visibility: trip.visibility || 'private',
       min_nights: trip.min_nights || 0,
-      immich_album_url: trip.immich_album_url || '',
+      photo_album_url: trip.photo_album_url || '',
       // Whether an app-created album (id known → name stays in sync) vs a
       // manually-linked one (embed only). The url itself is the secret, fine to
       // ship; we only expose a boolean for the id.
-      immich_album_linked: Boolean(trip.immich_album_id)
+      photo_album_managed: Boolean(trip.photo_album_id)
     },
     // Account-linked members (for the inline Trip-settings members list).
     members: participants

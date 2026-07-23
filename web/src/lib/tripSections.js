@@ -21,14 +21,14 @@ export const RAIL_MODULES = [
  * Build the shell's contextual section nav for a trip: Overview · Itinerary ·
  * the visible rail modules · Photos (when linked). Hidden sections drop out.
  *
- * @param {{ hidden_sections?: string[], immich_album_url?: string }} trip
+ * @param {{ hidden_sections?: string[], photo_album_url?: string }} trip
  * @param {string} [hrefBase]  '' → in-page anchors (`#itinerary`, for scrollSpy on
  *   the trip route); `/{token}` → absolute links (from the settings route).
  * @returns {import('@walaware/design').NavItem[]}
  */
 export function tripSectionNav(trip, hrefBase = '') {
   const hidden = new Set(trip.hidden_sections ?? []);
-  const hasPhotos = !!(trip.immich_album_url || '').trim();
+  const hasPhotos = !!(trip.photo_album_url || '').trim();
   /** @type {import('@walaware/design').NavItem[]} */
   const nav = [{ key: 'overview', label: 'Overview', icon: '✨', href: `${hrefBase}#overview` }];
   if (!hidden.has('itinerary')) nav.push({ key: 'itinerary', label: 'Itinerary', icon: '🗓️', href: `${hrefBase}#itinerary` });

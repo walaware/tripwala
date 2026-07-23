@@ -18,7 +18,7 @@
   import GearSection from '$lib/sections/GearSection.svelte';
   import MealsSection from '$lib/sections/MealsSection.svelte';
   import ExpensesSection from '$lib/sections/ExpensesSection.svelte';
-  import ImmichSection from '$lib/sections/ImmichSection.svelte';
+  import PhotoSection from '$lib/sections/PhotoSection.svelte';
   import SafetySection from '$lib/sections/SafetySection.svelte';
   import WrappedSection from '$lib/sections/WrappedSection.svelte';
 
@@ -89,7 +89,7 @@
   /** @param {string} key */
   const isHidden = (key) => hidden.has(key);
   const hasSafety = $derived(!!(trip.emergency_info || '').trim());
-  const hasPhotos = $derived(!!(trip.immich_album_url || '').trim());
+  const hasPhotos = $derived(!!(trip.photo_album_url || '').trim());
 
   // Live status lines for the mobile hub rows (one per module).
   const bookings = $derived(data.bookings ?? []);
@@ -353,7 +353,7 @@
     {:else if focus === 'expenses'}
       <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'photos'}
-      <ImmichSection url={trip.immich_album_url} onHide={null} onSettings={goSettings} />
+      <PhotoSection url={trip.photo_album_url} onHide={null} onSettings={goSettings} />
     {/if}
   </div>
 {:else if isMobile}

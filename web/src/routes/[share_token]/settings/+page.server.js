@@ -100,8 +100,11 @@ export async function load({ params, locals }) {
       join_policy: trip.join_policy || 'instant',
       invite_visibility: trip.invite_visibility || 'everyone',
       visibility: trip.visibility || 'private',
-      immich_album_url: trip.immich_album_url || '',
-      immich_album_linked: trip.immich_album_linked || false
+      photo_album_url: trip.photo_album_url || '',
+      // Managed = we own the provider's album id (Immich-created), so the
+      // "Type - Name" rename sync applies. A pasted link has no id. `trip` here
+      // is the raw record, so derive it rather than reading a projected flag.
+      photo_album_managed: Boolean(trip.photo_album_id)
     },
     members: await listMembers(pb, trip.id),
     pending: isOrganizer ? await listPending(pb, trip.id) : [],

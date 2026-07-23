@@ -2,7 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import { superuserPb } from '$lib/server/pocketbase.js';
 import { loadTripByShareToken, requireActiveMembership, assertInTrip } from '$lib/server/tripAuthz.js';
 import { isMailConfigured, sendInviteEmail } from '$lib/server/mailer.js';
-import { immichConfigured, createTripAlbum, syncAlbumName, parseShareLink } from '$lib/server/immich.js';
+import { immichConfigured, createTripAlbum, syncAlbumName } from '$lib/server/immich.js';
+import { parseAlbumLink } from '$lib/photoProviders.js';
 import { inviteFriendToTrip } from '$lib/server/invitations.js';
 import { isVisibility } from '$lib/visibility.js';
 import { claimQty, canTogglePacking, canRecommend } from '$lib/bring.js';
@@ -769,9 +770,9 @@ export async function POST({ params, request, locals, url }) {
         });
         // Keep a linked Immich album's name in sync with "Type - Trip Name"
         // (best-effort — a rename failure must not block saving the trip).
-        if (trip.immich_album_id) {
+        if (trip.photo_album_id) {
           try {
-            await syncAlbumName({ immich_album_id: trip.immich_album_id, name, trip_type: t(body.trip_type).slice(0, 30) });
+            await syncAlbumName({ photo_album_id: trip.photo_album_id, name, trip_type: t(body.trip_type).slice(0, 30) });
           } catch (_) {
             // ignore; the trip is saved regardless
           }
@@ -784,7 +785,7 @@ export async function POST({ params, request, locals, url }) {
       // Create a shared Immich album for this trip and link it.
       case 'album_create': {
         if (!isOrganizer) throw error(403, 'Only organizers can manage the album');
-        if (trip.immich_album_id || trip.immich_album_url) throw error(400, 'This trip already has an album');
+        if (trip.photo_album_id || trip.photo_album_url) throw error(400, 'This trip already has an album');
         if (!(await immichConfigured())) throw error(400, 'Immich is not set up for this instance');
         let result;
         try {
@@ -792,25 +793,26 @@ export async function POST({ params, request, locals, url }) {
         } catch (/** @type {any} */ e) {
           throw error(502, e?.message || 'Could not create the Immich album');
         }
-        await pb.collection('trips').update(trip.id, { immich_album_id: result.albumId, immich_album_url: result.albumUrl });
+        await pb.collection('trips').update(trip.id, { photo_album_id: result.albumId, photo_album_url: result.albumUrl });
         return json({ ok: true, albumUrl: result.albumUrl });
       }
 
-      // Link an existing Immich shared album by pasting its share link. We can
-      // embed it but not rename it (we don't own its album id), so the
+      // Link an existing shared album by pasting its share link — Google Photos,
+      // iCloud, another Immich instance, etc. We store the URL to embed or link
+      // out to, but can't rename it (we don't own its album id), so the
       // "Type - Name" sync doesn't apply to manually-linked albums.
       case 'album_link': {
         if (!isOrganizer) throw error(403, 'Only organizers can manage the album');
-        const parsed = parseShareLink(body.url);
-        if (!parsed?.url) throw error(400, 'Paste a full Immich share link (…/share/<key>)');
-        await pb.collection('trips').update(trip.id, { immich_album_url: parsed.url, immich_album_id: '' });
+        const parsed = parseAlbumLink(body.url);
+        if (!parsed) throw error(400, 'Paste a full album share link (https://…)');
+        await pb.collection('trips').update(trip.id, { photo_album_url: parsed.url, photo_album_id: '' });
         return json({ ok: true, albumUrl: parsed.url });
       }
 
       // Unlink the album from the trip (does NOT delete it in Immich).
       case 'album_unlink': {
         if (!isOrganizer) throw error(403, 'Only organizers can manage the album');
-        await pb.collection('trips').update(trip.id, { immich_album_id: '', immich_album_url: '' });
+        await pb.collection('trips').update(trip.id, { photo_album_id: '', photo_album_url: '' });
         break;
       }
 

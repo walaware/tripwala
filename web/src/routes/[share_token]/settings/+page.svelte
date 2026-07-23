@@ -56,7 +56,7 @@
       { key: 'gear', icon: '🎒', label: 'Gear', on: "The group's list & your pack", off: "The group's list & your pack" },
       { key: 'food', icon: '🍳', label: 'Food', on: "Meals & who's cooking", off: "Meals & who's cooking" },
       { key: 'expenses', icon: '💸', label: 'Expenses', on: 'Who paid what?', off: 'Shared costs & settle-up' },
-      ...((trip.immich_album_url || '').trim()
+      ...((trip.photo_album_url || '').trim()
         ? [{ key: 'photos', icon: '📷', label: 'Photos', on: 'Shared album', off: 'Shared album' }]
         : [])
     ]
