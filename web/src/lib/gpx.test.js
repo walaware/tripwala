@@ -23,6 +23,16 @@ test('parseGpx: extracts name + points with elevation', () => {
   assert.deepEqual(r.points[0], { lat: 34.38, lng: -117.69, ele: 2000 });
 });
 
+test('parseGpx: unwraps a CDATA-wrapped name (AllTrails/Gaia)', () => {
+  const xml = `<gpx><trk><name><![CDATA[Big Pine Lakes Trail]]></name><trkseg>
+    <trkpt lat="34.38" lon="-117.69"><ele>2000</ele></trkpt>
+    <trkpt lat="34.39" lon="-117.69"><ele>2100</ele></trkpt>
+  </trkseg></trk></gpx>`;
+  const r = parseGpx(xml);
+  assert.ok(r);
+  assert.equal(r.name, 'Big Pine Lakes Trail');
+});
+
 test('parseGpx: self-closing points and rtept, missing ele → null', () => {
   const xml = `<gpx><rte><rtept lat="1.0" lon="2.0"/><rtept lat="1.1" lon="2.1"/></rte></gpx>`;
   const r = parseGpx(xml);

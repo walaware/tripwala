@@ -16,6 +16,17 @@ function decodeXml(/** @type {string} */ s) {
 }
 
 /**
+ * Text content of an element body: unwraps a CDATA section literally (AllTrails,
+ * Gaia, etc. wrap <name> in <![CDATA[…]]>), otherwise decodes XML entities.
+ * @param {string} raw
+ */
+function textContent(raw) {
+  const s = (raw || '').trim();
+  const cdata = s.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  return cdata ? cdata[1].trim() : decodeXml(s);
+}
+
+/**
  * Parse a GPX document into a name + ordered points. Returns null when there's
  * no usable track. Elevation is null per-point when the file omits <ele>.
  * @param {string} xml
@@ -24,7 +35,7 @@ function decodeXml(/** @type {string} */ s) {
 export function parseGpx(xml) {
   if (typeof xml !== 'string' || xml.length < 10) return null;
   const nameMatch = xml.match(/<name>([\s\S]*?)<\/name>/i);
-  const name = nameMatch ? decodeXml(nameMatch[1].trim()).slice(0, 120) : '';
+  const name = nameMatch ? textContent(nameMatch[1]).slice(0, 120) : '';
 
   /** @type {Array<{ lat: number, lng: number, ele: number | null }>} */
   const points = [];
