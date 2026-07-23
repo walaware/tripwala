@@ -10,6 +10,7 @@ import { isVisibility } from '$lib/visibility.js';
 import { claimQty, canTogglePacking, canRecommend } from '$lib/bring.js';
 import { unfurl } from '$lib/server/unfurl.js';
 import { hasCoords, clampNum } from '$lib/coords.js';
+import { sanitizeCoordinates, trackStats, fromCoordinates } from '$lib/gpx.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the itinerary image field cap
 
@@ -1122,6 +1123,49 @@ export async function POST({ params, request, locals, url }) {
         const pin = await inTrip('map_pins', String(body.pinId ?? ''));
         if (!isOrganizer && pin.created_by !== me.id) throw error(403, 'Only the person who added a pin (or an organizer) can remove it');
         await pb.collection('map_pins').delete(pin.id);
+        break;
+      }
+
+      // ---- Trip route (#backpacking Phase 3) — any member can import/link/clear.
+      // Stats are always re-derived server-side from the sanitized geometry, so a
+      // client can't inject bogus distance/gain numbers.
+      case 'route_set': {
+        const coords = sanitizeCoordinates(body.coordinates);
+        if (!coords) throw error(400, 'That track had no usable points — try a different GPX file.');
+        const stats = trackStats(fromCoordinates(coords));
+        const prev = trip.route && typeof trip.route === 'object' ? trip.route : {};
+        const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
+        const url = /^https?:\/\/.+/i.test(rawUrl) ? rawUrl.slice(0, 500) : prev.url || '';
+        const name = String(body.name ?? '').trim().slice(0, 120) || prev.name || '';
+        await pb.collection('trips').update(trip.id, {
+          route: { name, url, preview: prev.preview || null, coordinates: coords, stats }
+        });
+        break;
+      }
+      // Link a trail page (AllTrails/Gaia/CalTopo/…) — best-effort unfurl for a
+      // preview; keeps any existing imported track.
+      case 'route_link': {
+        const url = String(body.url ?? '').trim().slice(0, 500);
+        if (!/^https?:\/\/.+/i.test(url)) throw error(400, 'Enter a full http(s):// trail link');
+        const prev = trip.route && typeof trip.route === 'object' ? trip.route : {};
+        let preview = null;
+        let name = prev.name || '';
+        try {
+          const u = await unfurl(url); // SSRF-guarded inside
+          if (u) {
+            preview = { title: u.title || '', image: u.image || '', description: u.description || '' };
+            if (!name && u.title) name = String(u.title).slice(0, 120);
+          }
+        } catch (_) {
+          /* link stands without a preview */
+        }
+        await pb.collection('trips').update(trip.id, {
+          route: { name, url, preview, coordinates: prev.coordinates || [], stats: prev.stats || null }
+        });
+        break;
+      }
+      case 'route_clear': {
+        await pb.collection('trips').update(trip.id, { route: null });
         break;
       }
 

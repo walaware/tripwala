@@ -153,6 +153,8 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       lng: trip.lng || 0,
       place_name: trip.place_name || '',
       elevation: trip.elevation || 0,
+      // Imported GPX track and/or trail link (#backpacking Phase 3). null = none.
+      route: trip.route && typeof trip.route === 'object' ? trip.route : null,
       pickedLocation,
       start_date: trip.start_date,
       end_date: trip.end_date,

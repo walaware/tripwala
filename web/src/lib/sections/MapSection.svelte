@@ -9,6 +9,7 @@
   import { invalidateAll } from '$app/navigation';
   import { Card, Button } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
+  import RoutePanel from '$lib/sections/RoutePanel.svelte';
   import { tripAction } from '$lib/tripClient.js';
   import { hasCoords } from '$lib/coords.js';
 
@@ -58,8 +59,18 @@
   /** @type {any} */ let map = null;
   /** @type {any} */ let pinLayer = null;
   /** @type {any} */ let draftMarker = null;
+  /** @type {any} */ let routeLine = null;
+  /** @type {any} */ let hoverMarker = null;
   /** @type {HTMLDivElement | undefined} */ let mapEl;
   let ready = $state(false);
+
+  // The trip's imported route as Leaflet [lat, lng] pairs (stored as GeoJSON
+  // [lng, lat, ele]). Empty when there's no track.
+  const routeLatLngs = $derived(
+    ((trip?.route?.coordinates ?? [])).map((/** @type {number[]} */ c) => [c[1], c[0]])
+  );
+  /** @type {{ lat: number, lng: number } | null} */
+  let hoverPoint = $state(null);
 
   let selectedId = $state('');
   let busy = $state('');
@@ -98,8 +109,10 @@
       });
 
       ready = true;
-      // Initial framing: fit to existing pins, else center on the trip location.
-      if (mapPins.length) fitToPins();
+      // Initial framing: the route if there is one, else the pins, else the
+      // trip's pinned location.
+      if (routeLatLngs.length > 1) fitToRoute();
+      else if (mapPins.length) fitToPins();
       else void centerOnTripLocation();
     })();
     return () => {
@@ -114,6 +127,49 @@
     const b = L.latLngBounds(mapPins.map((p) => [p.lat, p.lng]));
     map.fitBounds(b, { padding: [40, 40], maxZoom: 14 });
   }
+
+  function fitToRoute() {
+    if (!map || routeLatLngs.length < 2) return;
+    map.fitBounds(L.latLngBounds(routeLatLngs), { padding: [30, 30], maxZoom: 15 });
+  }
+
+  // Draw / redraw the route polyline whenever the stored track changes.
+  $effect(() => {
+    const pts = routeLatLngs;
+    if (!ready || !L || !map) return;
+    if (routeLine) {
+      routeLine.remove();
+      routeLine = null;
+    }
+    if (pts.length > 1) {
+      // Leaflet sets `stroke` via setAttribute, which won't resolve a CSS var —
+      // so this uses the concrete coral-500 hex.
+      routeLine = L.polyline(pts, { color: '#ff6b4a', weight: 4, opacity: 0.9 }).addTo(map);
+    }
+  });
+
+  // A marker that tracks the elevation-profile hover (from RoutePanel), so
+  // scrubbing the profile shows where you are on the trail.
+  $effect(() => {
+    const p = hoverPoint;
+    if (!ready || !L || !map) return;
+    if (!p) {
+      if (hoverMarker) {
+        hoverMarker.remove();
+        hoverMarker = null;
+      }
+      return;
+    }
+    if (!hoverMarker) {
+      hoverMarker = L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: '', html: '<div class="route-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+        interactive: false,
+        keyboard: false
+      }).addTo(map);
+    } else {
+      hoverMarker.setLatLng([p.lat, p.lng]);
+    }
+  });
 
   async function centerOnTripLocation() {
     // A pinned trip centres on its exact coordinates — no re-geocoding, so the
@@ -315,6 +371,9 @@
     </Button>
   </div>
 
+  <!-- Route: import a GPX track / link a trail; the track draws on the map above. -->
+  <RoutePanel {shareToken} route={trip.route ?? null} onHoverPoint={(p) => (hoverPoint = p)} />
+
   <!-- Add / edit form -->
   {#if form.open}
     <div class="mt-3 rounded-2xl bg-sand-100 p-3.5">
@@ -390,5 +449,14 @@
   :global(.pin-bubble.is-draft) {
     border-color: var(--color-coral-500, #ff6b4a);
     border-style: dashed;
+  }
+  /* The elevation-profile hover marker on the route line. */
+  :global(.route-dot) {
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: var(--color-coral-500, #ff6b4a);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(43, 30, 28, 0.4);
   }
 </style>

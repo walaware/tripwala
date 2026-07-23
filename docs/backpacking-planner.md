@@ -94,23 +94,44 @@ compact `WeatherCard` still serves every other trip and the unpinned fallback.
 
 ---
 
-## Phase 3 — Route & elevation profile (the "AllTrails" core)
+## Phase 3 — Route & elevation profile (the "AllTrails" core) 🚧 (first cut built)
 
-Give the trip an actual **route**, not just a point.
+Give the trip an actual **route**, not just a point. Lives under the Map section
+(one Leaflet map for pins + route); a trip carries one `route` (json field on
+`trips`, migration `1718605300`). **Why import-a-GPX + link, not auto-lookup:**
+AllTrails has no API and its GPX export is Plus-gated, and OSM/Overpass hiking
+relations miss most AllTrails-style day-hikes (they aren't route relations) — so
+a "type a trail name" lookup would disappoint. GPX import works with every
+source; a pasted trail link covers the reference.
 
-- **GPX/KML import.** Members upload a track; parse client-side with
-  `@tmcw/togeojson`, decimate with `simplify-js`, render with `leaflet-gpx`.
-  Store the simplified GeoJSON on the trip.
-- **Elevation profile chart.** Sample elevation along the track (OpenTopoData
-  self-hosted, or its 1,000/day public API) → an AllTrails-style ascent/descent
-  profile with total gain/loss, distance, min/max elevation. Smooth before
-  summing gain (raw GPS elevation over-counts badly).
-- **Hover-linked map ↔ profile.** Scrubbing the profile moves a marker on the
-  map and vice-versa.
-- **Trailheads & waymarked routes (OSM).** Pull `route=hiking` relations + trail
-  POIs near the pin via Overpass; offer them as suggested pins / a "connect to a
-  known trail" affordance. This is the only *legal* third-party trail-geometry
-  source for an indie app (see §API landscape).
+**Built:**
+
+- **GPX/GPS import.** ✅ `web/src/lib/gpx.js` — a dependency-free, isomorphic,
+  regex-based GPX parser (handles `<trkpt>`/`<rtept>`, self-closing or with
+  `<ele>`; AllTrails-Plus/Gaia/CalTopo/Strava/Wikiloc exports). Parsed in the
+  browser (`RoutePanel`); decimated to ≤2000 pts; sent as GeoJSON `[lng,lat,ele]`.
+  **The server re-derives all stats** from the sanitized geometry (`route_set`),
+  so client numbers are never trusted. 13 tests.
+- **Elevation profile chart.** ✅ `ElevationProfile.svelte` — a hand-rolled SVG
+  area chart (no chart lib) of elevation vs cumulative distance, with distance /
+  gain / loss / min–max stats. Elevation comes from the GPX's own `<ele>`;
+  gain/loss use a smoothed series so GPS jitter doesn't overcount.
+- **Hover-linked map ↔ profile.** ✅ Scrubbing the profile moves a marker along
+  the route polyline on the map. (map→profile direction deferred.)
+- **Trail link.** ✅ Paste an AllTrails/Gaia/CalTopo/… URL (`route_link`) →
+  best-effort SSRF-guarded unfurl → a preview card + link-out; coexists with an
+  imported track.
+
+**Deferred to a Phase 3 follow-up:**
+
+- **KML/TCX import** (only GPX in the first cut).
+- **Elevation backfill** for GPX files with no `<ele>`: sample OpenTopoData
+  (self-host or 1k/day public) along the track.
+- **Trailheads & waymarked routes (OSM).** Overpass `route=hiking` relations +
+  trail POIs near the pin as suggested pins / "connect to a known trail" — the
+  only *legal* third-party trail-geometry source (see §API landscape). Needs a
+  rate-limited proxy like the geocode one.
+- **Multi-day segmentation** — split the track into daily legs feeding Phase 5.
 
 ---
 
