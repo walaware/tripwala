@@ -12,6 +12,7 @@
   import RoutePanel from '$lib/sections/RoutePanel.svelte';
   import { tripAction } from '$lib/tripClient.js';
   import { hasCoords } from '$lib/coords.js';
+  import { PIN_CATS as CATS, emojiOf } from '$lib/pinCategories.js';
 
   /**
    * @type {{
@@ -38,28 +39,13 @@
     onToggle = null
   } = $props();
 
-  /** category → [emoji, label] */
-  const CATS = /** @type {const} */ ([
-    ['campsite', '🏕️', 'Campsite'],
-    ['lodging', '🛏️', 'Lodging'],
-    ['meetup', '📍', 'Meetup point'],
-    ['parking', '🅿️', 'Parking'],
-    ['trailhead', '🥾', 'Trailhead'],
-    ['gas', '⛽', 'Gas'],
-    ['food', '🍽️', 'Food'],
-    ['water', '🚰', 'Water'],
-    ['viewpoint', '🌄', 'Viewpoint'],
-    ['other', '📌', 'Other']
-  ]);
-  /** @param {string} c */
-  const emojiOf = (c) => (CATS.find(([k]) => k === c) ?? CATS[CATS.length - 1])[1];
-
   // ---- Leaflet (set up in onMount; kept out of $state so they don't churn) ----
   /** @type {any} */ let L = null;
   /** @type {any} */ let map = null;
   /** @type {any} */ let pinLayer = null;
   /** @type {any} */ let draftMarker = null;
   /** @type {any} */ let routeLine = null;
+  /** @type {any} */ let routeEnds = null; // layer group for start/finish markers
   /** @type {any} */ let hoverMarker = null;
   /** @type {HTMLDivElement | undefined} */ let mapEl;
   let ready = $state(false);
@@ -133,7 +119,8 @@
     map.fitBounds(L.latLngBounds(routeLatLngs), { padding: [30, 30], maxZoom: 15 });
   }
 
-  // Draw / redraw the route polyline whenever the stored track changes.
+  // Draw / redraw the route polyline + start/finish markers whenever the stored
+  // track changes.
   $effect(() => {
     const pts = routeLatLngs;
     if (!ready || !L || !map) return;
@@ -141,10 +128,27 @@
       routeLine.remove();
       routeLine = null;
     }
+    if (routeEnds) {
+      routeEnds.remove();
+      routeEnds = null;
+    }
     if (pts.length > 1) {
       // Leaflet sets `stroke` via setAttribute, which won't resolve a CSS var —
       // so this uses the concrete coral-500 hex.
       routeLine = L.polyline(pts, { color: '#ff6b4a', weight: 4, opacity: 0.9 }).addTo(map);
+      routeEnds = L.layerGroup().addTo(map);
+      const endIcon = (/** @type {string} */ emoji, /** @type {string} */ cls) =>
+        L.divIcon({ className: '', html: `<div class="route-end ${cls}">${emoji}</div>`, iconSize: [26, 26], iconAnchor: [13, 26] });
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      // Treat coincident endpoints (~a loop) as a single trailhead marker.
+      const loop = L.latLng(first).distanceTo(L.latLng(last)) < 60;
+      if (loop) {
+        routeEnds.addLayer(L.marker(first, { icon: endIcon('🥾', 'is-start'), title: 'Trailhead' }));
+      } else {
+        routeEnds.addLayer(L.marker(first, { icon: endIcon('🚩', 'is-start'), title: 'Start' }));
+        routeEnds.addLayer(L.marker(last, { icon: endIcon('🏁', 'is-finish'), title: 'Finish' }));
+      }
     }
   });
 
@@ -372,7 +376,7 @@
   </div>
 
   <!-- Route: import a GPX track / link a trail; the track draws on the map above. -->
-  <RoutePanel {shareToken} route={trip.route ?? null} onHoverPoint={(p) => (hoverPoint = p)} />
+  <RoutePanel {shareToken} route={trip.route ?? null} {mapPins} onHoverPoint={(p) => (hoverPoint = p)} />
 
   <!-- Add / edit form -->
   {#if form.open}
@@ -449,6 +453,22 @@
   :global(.pin-bubble.is-draft) {
     border-color: var(--color-coral-500, #ff6b4a);
     border-style: dashed;
+  }
+  /* Route start / finish badges on the map. */
+  :global(.route-end) {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    font-size: 15px;
+    line-height: 1;
+    background: #fff;
+    border: 2px solid var(--color-coral-500, #ff6b4a);
+    border-radius: 9999px;
+    box-shadow: 0 2px 6px rgba(43, 30, 28, 0.3);
+  }
+  :global(.route-end.is-finish) {
+    border-color: var(--color-cocoa-500, #6b4f3a);
   }
   /* The elevation-profile hover marker on the route line. */
   :global(.route-dot) {

@@ -118,6 +118,13 @@ source; a pasted trail link covers the reference.
   gain/loss use a smoothed series so GPS jitter doesn't overcount.
 - **Hover-linked map ↔ profile.** ✅ Scrubbing the profile moves a marker along
   the route polyline on the map. (map→profile direction deferred.)
+- **Start / finish + on-route pins.** ✅ Route endpoints show as start (🚩) /
+  finish (🏁) badges on the map and on the elevation profile — a coincident
+  start/finish collapses to one 🥾 trailhead (loop). Campsite / water /
+  viewpoint / trailhead map pins within 1.5 km of the track are projected onto
+  the profile at their along-route distance (`projectOntoRoute` in `$lib/gpx.js`),
+  so you can see where camps fall along the climb. Categories shared via
+  `$lib/pinCategories.js`.
 - **Trail link.** ✅ Paste an AllTrails/Gaia/CalTopo/… URL (`route_link`) →
   best-effort SSRF-guarded unfurl → a preview card + link-out; coexists with an
   imported track.

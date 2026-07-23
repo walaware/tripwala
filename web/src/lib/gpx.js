@@ -193,6 +193,43 @@ export function sanitizeCoordinates(coords) {
 }
 
 /**
+ * Cumulative along-track distance (m) at each point; cum[0] = 0.
+ * @param {Array<{ lat: number, lng: number }>} points
+ * @returns {number[]}
+ */
+export function cumulativeDistances(points) {
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) {
+    cum[i] = cum[i - 1] + haversine(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
+  }
+  return cum;
+}
+
+/**
+ * Project an arbitrary lat/lng (e.g. a campsite pin) onto the route by nearest
+ * vertex. Returns the vertex index, its along-track distance, and how far off
+ * the route the point is (so callers can drop pins that aren't really on it).
+ * @param {Array<{ lat: number, lng: number }>} points
+ * @param {number} lat @param {number} lng
+ * @param {number[]} [cum] precomputed cumulativeDistances(points)
+ * @returns {{ index: number, distM: number, gapM: number } | null}
+ */
+export function projectOntoRoute(points, lat, lng, cum) {
+  if (!Array.isArray(points) || points.length < 2 || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const c = cum && cum.length === points.length ? cum : cumulativeDistances(points);
+  let index = 0;
+  let gapM = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const g = haversine(points[i].lat, points[i].lng, lat, lng);
+    if (g < gapM) {
+      gapM = g;
+      index = i;
+    }
+  }
+  return { index, distM: c[index], gapM };
+}
+
+/**
  * Build the elevation profile for the chart: cumulative distance (m) vs
  * elevation, downsampled to ~samples points. Returns [] when the track has no
  * elevation. Each entry also keeps its source index so the map can sync a marker.
@@ -202,11 +239,7 @@ export function elevationProfile(points, samples = 120) {
   if (!Array.isArray(points) || points.length < 2) return [];
   const eles = smoothElevations(points.map((p) => (Number.isFinite(p.ele) ? p.ele : null)), 5);
   if (!eles.some((e) => e != null)) return [];
-  // Cumulative distance per point.
-  const cum = [0];
-  for (let i = 1; i < points.length; i++) {
-    cum[i] = cum[i - 1] + haversine(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
-  }
+  const cum = cumulativeDistances(points);
   const total = cum[cum.length - 1] || 1;
   const n = Math.min(samples, points.length);
   /** @type {Array<{ distM: number, ele: number, index: number }>} */

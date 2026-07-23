@@ -10,17 +10,24 @@
   import { Button } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import { tempUnit, unitSystem } from '$lib/prefs.js';
-  import { parseGpx, decimate, toCoordinates, fromCoordinates, elevationProfile } from '$lib/gpx.js';
+  import { parseGpx, decimate, toCoordinates, fromCoordinates, elevationProfile, cumulativeDistances, projectOntoRoute, haversine } from '$lib/gpx.js';
+  import { emojiOf, ON_ROUTE_CATS } from '$lib/pinCategories.js';
   import ElevationProfile from '$lib/ui/ElevationProfile.svelte';
 
   /**
    * @type {{
    *   shareToken: string,
    *   route: { name?: string, url?: string, preview?: any, coordinates?: number[][], stats?: any } | null,
+   *   mapPins?: Array<{ id: string, label: string, category: string, lat: number, lng: number }>,
    *   onHoverPoint?: (p: { lat: number, lng: number } | null) => void
    * }}
    */
-  let { shareToken, route = null, onHoverPoint = () => {} } = $props();
+  let { shareToken, route = null, mapPins = [], onHoverPoint = () => {} } = $props();
+
+  // How close a pin must be to the route to count as "on" it (else it's just a
+  // trailhead-area logistics pin, not a point along the climb).
+  const ON_ROUTE_GAP_M = 1500;
+  const LOOP_GAP_M = 60; // start≈finish → a loop; show one trailhead, not two flags
 
   const sys = $derived(unitSystem(tempUnit(page.data?.user)));
 
@@ -35,6 +42,47 @@
   const points = $derived(hasTrack ? fromCoordinates(route?.coordinates) : []);
   const profile = $derived(hasTrack ? elevationProfile(points, 140) : []);
   const stats = $derived(route?.stats ?? null);
+
+  /** Elevation from the (smoothed, non-null) profile at a given along-route distance. */
+  function eleAtDist(/** @type {number} */ distM) {
+    if (!profile.length) return 0;
+    let best = profile[0];
+    let gap = Infinity;
+    for (const p of profile) {
+      const g = Math.abs(p.distM - distM);
+      if (g < gap) {
+        gap = g;
+        best = p;
+      }
+    }
+    return best.ele;
+  }
+
+  // Start / finish + on-route pins (campsites, water, viewpoints) projected onto
+  // the profile. Only built when the track has elevation (else no profile shows).
+  const profileMarkers = $derived.by(() => {
+    if (profile.length < 2 || points.length < 2) return [];
+    const cum = cumulativeDistances(points);
+    const total = cum[cum.length - 1];
+    const first = points[0];
+    const last = points[points.length - 1];
+    const isLoop = haversine(first.lat, first.lng, last.lat, last.lng) < LOOP_GAP_M;
+    /** @type {Array<{ distM: number, ele: number, emoji: string, label: string, kind: string }>} */
+    const out = [];
+    if (isLoop) {
+      out.push({ distM: 0, ele: eleAtDist(0), emoji: '🥾', label: 'Trailhead (loop)', kind: 'start' });
+    } else {
+      out.push({ distM: 0, ele: eleAtDist(0), emoji: '🚩', label: 'Start', kind: 'start' });
+      out.push({ distM: total, ele: eleAtDist(total), emoji: '🏁', label: 'Finish', kind: 'finish' });
+    }
+    for (const pin of mapPins) {
+      if (!ON_ROUTE_CATS.has(pin.category)) continue;
+      const hit = projectOntoRoute(points, pin.lat, pin.lng, cum);
+      if (!hit || hit.gapM > ON_ROUTE_GAP_M) continue;
+      out.push({ distM: hit.distM, ele: eleAtDist(hit.distM), emoji: emojiOf(pin.category), label: pin.label || 'Pin', kind: `pin-${pin.id}` });
+    }
+    return out;
+  });
 
   /** @param {number | null} index into the full track */
   function hoverAt(index) {
@@ -135,7 +183,7 @@
       {/if}
     </div>
     {#if profile.length > 1}
-      <ElevationProfile {profile} metric={sys.metric} onHover={hoverAt} />
+      <ElevationProfile {profile} markers={profileMarkers} metric={sys.metric} onHover={hoverAt} />
     {/if}
   {/if}
 

@@ -7,11 +7,12 @@
   /**
    * @type {{
    *   profile: Array<{ distM: number, ele: number, index: number }>,
+   *   markers?: Array<{ distM: number, ele: number, emoji: string, label: string, kind: string }>,
    *   metric?: boolean,
    *   onHover?: (index: number | null) => void
    * }}
    */
-  let { profile = [], metric = false, onHover = () => {} } = $props();
+  let { profile = [], markers = [], metric = false, onHover = () => {} } = $props();
 
   const W = 1000;
   const H = 220;
@@ -76,6 +77,19 @@
     metric ? `${(m / 1000).toFixed(1)} km` : `${(m / 1609.344).toFixed(1)} mi`;
   const fmtEle = (/** @type {number} */ m) =>
     metric ? `${Math.round(m)} m` : `${Math.round(m * 3.28084)} ft`;
+
+  // Markers (start/finish/campsites) as an HTML overlay — the SVG uses non-
+  // uniform scaling (preserveAspectRatio=none) which would distort emoji, so we
+  // position chips over it in %. left/top map viewBox coords → box fraction.
+  const placed = $derived.by(() =>
+    !bounds
+      ? []
+      : markers.map((m) => ({
+          ...m,
+          left: Math.min(97, Math.max(3, (sx(m.distM) / W) * 100)),
+          top: (sy(m.ele) / H) * 100
+        }))
+  );
 </script>
 
 {#if bounds}
@@ -88,17 +102,30 @@
         <span>{fmtDist(bounds.maxD)}</span>
       {/if}
     </div>
-    <svg
-      viewBox="0 0 {W} {H}" class="h-28 w-full touch-none" preserveAspectRatio="none"
-      role="img" aria-label="Elevation profile along the route"
-      onpointermove={onMove} onpointerleave={onLeave}
-    >
-      <path d={areaPath} style="fill: var(--color-leaf-100, #dff0d8)" />
-      <path d={linePath} fill="none" stroke-width="3" vector-effect="non-scaling-stroke" style="stroke: var(--color-leaf-600, #4a8a3a)" />
-      {#if hover}
-        <line x1={sx(hover.distM)} x2={sx(hover.distM)} y1={PAD.t} y2={H} stroke-width="2" vector-effect="non-scaling-stroke" style="stroke: var(--color-coral-500, #ff6b4a)" />
-        <circle cx={sx(hover.distM)} cy={sy(hover.ele)} r="5" style="fill: var(--color-coral-500, #ff6b4a)" />
-      {/if}
-    </svg>
+    <div class="relative h-28 w-full">
+      <svg
+        viewBox="0 0 {W} {H}" class="h-full w-full touch-none" preserveAspectRatio="none"
+        role="img" aria-label="Elevation profile along the route"
+        onpointermove={onMove} onpointerleave={onLeave}
+      >
+        <path d={areaPath} style="fill: var(--color-leaf-100, #dff0d8)" />
+        <path d={linePath} fill="none" stroke-width="3" vector-effect="non-scaling-stroke" style="stroke: var(--color-leaf-600, #4a8a3a)" />
+        {#each placed as m (m.kind + m.label + m.distM)}
+          <line x1={sx(m.distM)} x2={sx(m.distM)} y1={sy(m.ele)} y2={H} stroke-width="1.5" vector-effect="non-scaling-stroke" style="stroke: var(--color-cocoa-300, #d9c3b0)" />
+        {/each}
+        {#if hover}
+          <line x1={sx(hover.distM)} x2={sx(hover.distM)} y1={PAD.t} y2={H} stroke-width="2" vector-effect="non-scaling-stroke" style="stroke: var(--color-coral-500, #ff6b4a)" />
+          <circle cx={sx(hover.distM)} cy={sy(hover.ele)} r="5" style="fill: var(--color-coral-500, #ff6b4a)" />
+        {/if}
+      </svg>
+      <!-- Emoji markers overlaid (undistorted) at their along-route position. -->
+      {#each placed as m (m.kind + m.label + m.distM)}
+        <span
+          class="pointer-events-none absolute -translate-x-1/2 -translate-y-full select-none text-[15px] leading-none drop-shadow"
+          style="left: {m.left}%; top: {m.top}%"
+          title="{m.label} · {fmtDist(m.distM)}"
+        >{m.emoji}</span>
+      {/each}
+    </div>
   </div>
 {/if}

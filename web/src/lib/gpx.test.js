@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseGpx, haversine, trackStats, decimate, toCoordinates, fromCoordinates,
-  sanitizeCoordinates, elevationProfile
+  sanitizeCoordinates, elevationProfile, cumulativeDistances, projectOntoRoute
 } from './gpx.js';
 
 const GPX = `<?xml version="1.0"?>
@@ -117,6 +117,40 @@ test('elevationProfile: cumulative distance vs elevation', () => {
   assert.ok(prof[prof.length - 1].distM > 0);
   assert.ok(Number.isFinite(prof[0].ele));
   assert.equal(prof[prof.length - 1].index, r.points.length - 1);
+});
+
+test('cumulativeDistances: monotonic, starts at 0', () => {
+  const pts = [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }, { lat: 0, lng: 2 }];
+  const cum = cumulativeDistances(pts);
+  assert.equal(cum[0], 0);
+  assert.ok(cum[1] > 0);
+  assert.ok(cum[2] > cum[1]);
+});
+
+test('projectOntoRoute: snaps a pin to the nearest vertex + its distance', () => {
+  const pts = [
+    { lat: 34.380, lng: -117.690 },
+    { lat: 34.390, lng: -117.690 },
+    { lat: 34.400, lng: -117.690 }
+  ];
+  // A campsite right by the middle vertex.
+  const p = projectOntoRoute(pts, 34.3902, -117.6901);
+  assert.ok(p);
+  assert.equal(p.index, 1);
+  assert.ok(p.gapM < 100); // within ~100 m of the route
+  assert.ok(p.distM > 0);
+});
+
+test('projectOntoRoute: far-off point reports a large gap', () => {
+  const pts = [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }];
+  const p = projectOntoRoute(pts, 10, 10);
+  assert.ok(p);
+  assert.ok(p.gapM > 100000); // clearly not on the route
+});
+
+test('projectOntoRoute: guards bad input', () => {
+  assert.equal(projectOntoRoute([{ lat: 0, lng: 0 }], 0, 0), null);
+  assert.equal(projectOntoRoute([{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }], NaN, 0), null);
 });
 
 test('elevationProfile: no elevation → empty', () => {
