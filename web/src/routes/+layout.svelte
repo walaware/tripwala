@@ -182,11 +182,12 @@
       : null
   );
 
-  // Trip settings is its own screen (the redesign's "one home"): the shell's
-  // Settings gear routes there whenever a trip is in view — contextual dashboard
-  // OR the settings route itself. Account / profile is reached via the avatar's
-  // onProfile, not this gear.
-  const onSettings = $derived(tripToken ? () => goto(`/${tripToken}/settings`) : null);
+  // Trip settings is its own screen (the redesign's "one home"). It's surfaced as
+  // the LAST item of the trip's section nav (see tripSectionNav / TripView) so it
+  // reads as this trip's settings, sitting at the bottom of the upper section —
+  // not as an app-level gear in the shell chrome, which read ambiguously as
+  // *app* settings. So the shell's standalone gear is intentionally off.
+  const onSettings = null;
   const settingsActive = $derived(path.endsWith('/settings'));
 </script>
 

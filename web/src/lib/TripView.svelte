@@ -1,14 +1,10 @@
 <script>
   import { onMount } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
-  import { enhance } from '$app/forms';
   import { page } from '$app/state';
-  import { Modal } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import { fmtDateRange, tripEmoji } from '$lib/format.js';
   import { useShell } from '$lib/shell.svelte.js';
-  import TripDetailsForm from '$lib/sections/settings/TripDetailsForm.svelte';
-  import PhotoAlbum from '$lib/sections/settings/PhotoAlbum.svelte';
 
   // Full section components — reused verbatim as the focused ("spoke") views.
   import ItinerarySection from '$lib/sections/ItinerarySection.svelte';
@@ -151,7 +147,9 @@
   ]);
 
   // Section nav published to the shell (scrollSpy anchors). Hidden sections drop
-  // out of the nav too.
+  // out of the nav too. Settings sits LAST — a route link (not an anchor) at the
+  // bottom of the trip's own section list, so it reads as this trip's settings
+  // rather than an app-level gear floating in the shell chrome.
   const visibleNav = $derived(
     [
       { key: 'overview', label: 'Overview', icon: '✨', href: '#overview' },
@@ -159,7 +157,8 @@
       ...(hasSafety ? [{ key: 'safety', label: 'Safety', icon: '🚨', href: '#safety' }] : []),
       ...(!isHidden('itinerary') ? [{ key: 'itinerary', label: 'Itinerary', icon: '🗓️', href: '#itinerary' }] : []),
       ...visibleRail.map((r) => ({ key: r.key, label: r.nav, icon: r.emoji, href: `#${r.key}` })),
-      ...(hasPhotos && !isHidden('photos') ? [{ key: 'photos', label: 'Photos', icon: '📷', href: '#photos' }] : [])
+      ...(hasPhotos && !isHidden('photos') ? [{ key: 'photos', label: 'Photos', icon: '📷', href: '#photos' }] : []),
+      { key: 'tripsettings', label: 'Settings', icon: '⚙️', href: `/${trip.share_token}/settings` }
     ]
   );
 
@@ -212,55 +211,12 @@
     { icon: '🤔', label: 'Something to decide', onClick: () => setFocus('itinerary') }
   ];
 
-  // ── Trip-level manage actions (header ⋯ menu) ──────────────────────────────
-  // Edit details / clone / move-to-ideas / photo album / leave — moved out of
-  // Trip settings' "Manage" group into the header, next to ＋ Add.
-  let editOpen = $state(false);
-  let photosOpen = $state(false);
-  let manageBusy = $state('');
-  let savedFlash = $state(false);
-  let cloning = $state(false);
-  /** @type {HTMLFormElement | undefined} */
-  let cloneForm = $state();
+  // Trip-level manage actions (edit details, clone, photo album, leave, stage,
+  // delete) all live in the one Trip settings home (⚙ in the sidebar / mobile
+  // trip-home row / each module's gear) — the header carries only ＋ Add, so
+  // there's a single, non-duplicated place to manage a trip.
 
-  /** @param {string} op @param {Record<string, unknown>} payload @param {string} [tag] */
-  async function manageAct(op, payload = {}, tag = op) {
-    if (manageBusy) return;
-    manageBusy = tag;
-    try {
-      await tripAction(trip.share_token, { op, ...payload });
-      await invalidateAll();
-      if (op === 'trip_update') {
-        savedFlash = true;
-        setTimeout(() => (savedFlash = false), 1500);
-      }
-    } catch (_) {
-      /* reconciled on next load */
-    } finally {
-      manageBusy = '';
-    }
-  }
-
-  async function leaveTrip() {
-    if (manageBusy) return;
-    if (!confirm('Leave this trip? You can re-join later from the invite link.')) return;
-    manageBusy = 'leave';
-    try {
-      await tripAction(trip.share_token, { op: 'leave_trip' });
-      await goto('/');
-    } catch (_) {
-      manageBusy = '';
-    }
-  }
-
-  const manageActions = $derived([
-    ...(ownerMode ? [{ icon: '✏️', label: 'Edit trip details', onClick: () => { editOpen = true; } }] : []),
-    { icon: '📋', label: 'Clone this trip', onClick: () => { cloneForm?.requestSubmit(); } },
-    ...(ownerMode ? [{ icon: '📷', label: 'Photo album', onClick: () => { photosOpen = true; } }] : []),
-    { icon: '🚪', label: 'Leave this trip', onClick: leaveTrip, danger: true }
-  ]);
-
-  // Organizer hides a section from its ⋯ menu (restore from Trip settings).
+  // Organizer hides a section from its gear menu (restore from Trip settings).
   /** @param {string} key */
   async function hideSection(key) {
     try {
@@ -353,7 +309,7 @@
 {:else if isMobile}
   <!-- Mobile hub & spoke: trip home is a status list; a tap opens a module. -->
   <TripBanner {trip} />
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} {manageActions} />
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -376,7 +332,7 @@
   </div>
 {:else}
   <TripBanner {trip} />
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} {manageActions} />
+  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -450,30 +406,6 @@
     {/if}
   </div>
 {/if}
-
-<!-- Trip-level manage surfaces reached from the header ⋯ menu. -->
-{#if ownerMode}
-  <Modal open={editOpen} onClose={() => (editOpen = false)} title="Edit trip details" size="md">
-    <TripDetailsForm shareToken={trip.share_token} {trip} busy={manageBusy} {savedFlash} act={manageAct} />
-  </Modal>
-  <Modal open={photosOpen} onClose={() => (photosOpen = false)} title="Photo album" size="sm">
-    <PhotoAlbum shareToken={trip.share_token} {trip} immichEnabled={data.immichEnabled ?? false} />
-  </Modal>
-{/if}
-<!-- Clone posts to the trip route's ?/clone action, then redirects to the copy. -->
-<form
-  bind:this={cloneForm}
-  method="POST"
-  action="?/clone"
-  class="hidden"
-  use:enhance={() => {
-    cloning = true;
-    return async ({ update }) => {
-      await update();
-      cloning = false;
-    };
-  }}
-></form>
 
 <style>
   .trip-stack {

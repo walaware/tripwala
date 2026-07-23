@@ -36,5 +36,10 @@ export function tripSectionNav(trip, hrefBase = '') {
     if (!hidden.has(r.key)) nav.push({ key: r.key, label: r.nav, icon: r.emoji, href: `${hrefBase}#${r.key}` });
   }
   if (hasPhotos && !hidden.has('photos')) nav.push({ key: 'photos', label: 'Photos', icon: '📷', href: `${hrefBase}#photos` });
+  // Settings sits last, as a route link — so it reads as this trip's settings at
+  // the bottom of the section list, not an app-level gear. Only added in absolute
+  // mode (from the settings route); the in-page/anchor caller adds its own so the
+  // link never resolves to the global `/settings`.
+  if (hrefBase) nav.push({ key: 'tripsettings', label: 'Settings', icon: '⚙️', href: `${hrefBase}/settings` });
   return nav;
 }

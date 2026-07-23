@@ -16,16 +16,20 @@
    * (The mockup's "💬 Message crew" button is omitted — tripwala has no crew-chat
    * surface to back it.)
    *
+   * Trip management (edit, clone, photos, leave, stage, delete) lives in the one
+   * Trip settings home (the sidebar ⚙ / mobile trip-home row / each module's
+   * gear) — the header carries only ＋ Add, so there's no second, overlapping
+   * manage surface competing with settings.
+   *
    * @type {{
    *   emoji: string,
    *   name: string,
    *   meta: string,
    *   isPast?: boolean,
-   *   addActions: Array<{ icon?: string, label: string, onClick?: () => void }>,
-   *   manageActions?: Array<{ icon?: string, label: string, onClick?: () => void, danger?: boolean }>
+   *   addActions: Array<{ icon?: string, label: string, onClick?: () => void }>
    * }}
    */
-  let { emoji, name, meta, isPast = false, addActions, manageActions = [] } = $props();
+  let { emoji, name, meta, isPast = false, addActions } = $props();
 </script>
 
 <header data-appshell-sticky class="trip-head" style="background: var(--color-bg-app)">
@@ -51,10 +55,6 @@
         <Button variant="primary" size="sm" onclick={toggle}>＋ Add</Button>
       {/snippet}
     </OverflowMenu>
-
-    {#if manageActions.length}
-      <OverflowMenu actions={manageActions} label="Manage this trip" align="end" triggerLabel="Manage this trip" />
-    {/if}
   </div>
 </header>
 
