@@ -1,13 +1,14 @@
 <script>
   import { invalidateAll } from '$app/navigation';
-  import { tripAction } from '$lib/tripClient.js';
+  import { tripAction, tripUpload } from '$lib/tripClient.js';
   import { Card, Avatar, Button, EmptyState, Tooltip } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
   import { tripDays, fmtWeekday, fmtMonthDay, fmtDateRange, tripLength } from '$lib/format.js';
   import { navUrl } from '$lib/maps.js';
+  import { cardImage, cardDomain } from '$lib/locationCard.js';
 
   /**
-   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
+   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
    */
 
   /**
@@ -185,6 +186,7 @@
   let niTime = $state('');
   let niPlace = $state('');
   let niNote = $state('');
+  let niUrl = $state('');
   /** @type {'fixed'|'flexible'} */
   let niKind = $state('flexible');
   // One open item editor at a time.
@@ -193,8 +195,17 @@
   let eTime = $state('');
   let ePlace = $state('');
   let eNote = $state('');
+  let eUrl = $state('');
   /** @type {'fixed'|'flexible'} */
   let eKind = $state('flexible');
+
+  // Per-item photo upload (#to-decide-cards): one hidden input, aimed at one
+  // item at a time, mirroring PlanLocationSection's camera flow.
+  /** @type {HTMLInputElement | undefined} */
+  let fileInput = $state();
+  let uploadTargetId = $state('');
+  let uploadingId = $state('');
+  let mediaError = $state('');
 
   /** @param {Record<string, unknown>} body */
   async function run(body) {
@@ -217,6 +228,7 @@
     niTime = '';
     niPlace = '';
     niNote = '';
+    niUrl = '';
     niKind = 'flexible';
   }
   async function submitAdd() {
@@ -224,7 +236,7 @@
     const date = addKey || undefined;
     // Undated entries are always suggestions (decisions to vote on).
     const kind = addKey === '' ? 'flexible' : niKind;
-    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), note: niNote.trim(), date, kind });
+    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), note: niNote.trim(), url: niUrl.trim(), date, kind });
     addKey = null;
   }
 
@@ -235,12 +247,13 @@
     eTime = it.time;
     ePlace = it.place;
     eNote = it.note;
+    eUrl = it.url;
     eKind = it.kind;
   }
   async function submitEdit() {
     if (!eLabel.trim()) return;
     const id = editId;
-    await run({ op: 'itin_item_update', itemId: id, label: eLabel.trim(), time: eTime.trim(), place: ePlace.trim(), note: eNote.trim(), kind: eKind });
+    await run({ op: 'itin_item_update', itemId: id, label: eLabel.trim(), time: eTime.trim(), place: ePlace.trim(), note: eNote.trim(), url: eUrl.trim(), kind: eKind });
     editId = '';
   }
 
@@ -248,10 +261,55 @@
   const vote = (itemId) => run({ op: 'itin_vote', itemId });
   /** @param {string} itemId */
   const removeItem = (itemId) => run({ op: 'itin_item_remove', itemId });
+
+  // ---- Photo upload (creator or organizer; same rule as edit/remove) ----
+  /** @param {string} id */
+  function pickPhotoFor(id) {
+    uploadTargetId = id;
+    mediaError = '';
+    fileInput?.click();
+  }
+  /** @param {Event} e */
+  async function onFileChange(e) {
+    const input = /** @type {HTMLInputElement} */ (e.currentTarget);
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) await doUpload(uploadTargetId, file);
+  }
+  /** @param {string} id @param {File} file */
+  async function doUpload(id, file) {
+    if (!file.type.startsWith('image/')) {
+      mediaError = 'That needs to be an image (JPG, PNG…).';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      mediaError = 'Image must be under 5 MB.';
+      return;
+    }
+    uploadingId = id;
+    mediaError = '';
+    try {
+      await tripUpload(shareToken, { op: 'itin_item_image', itemId: id }, file);
+      await invalidateAll();
+    } catch (_) {
+      mediaError = 'Could not upload that image — try a different one.';
+    } finally {
+      uploadingId = '';
+    }
+  }
+  /** @param {string} itemId */
+  const removePhoto = (itemId) => run({ op: 'itin_item_image_remove', itemId });
 </script>
 
 <SectionHeader emoji="🗓️" title="What's the plan?" subtitle={plannedDays ? `${plannedDays} day${plannedDays === 1 ? '' : 's'} planned` : ''} {onHide} {onSettings} {collapsed} {onToggle} />
 <Card>
+  {#if mediaError}
+    <p class="mb-2 rounded-lg bg-berry-200 px-3 py-2 font-body text-xs font-bold text-berry-600">{mediaError}</p>
+  {/if}
+
+  <!-- One hidden input drives every item's "📷" photo upload. -->
+  <input bind:this={fileInput} type="file" accept="image/*" class="hidden" onchange={onFileChange} />
+
   <!-- The trip dates lead the plan (no separate Dates section). -->
   <div class="mb-3 flex items-baseline gap-2.5">
     <span class="font-display text-[20px] font-bold text-text-strong">{range || 'Dates TBD'}</span>
@@ -479,6 +537,13 @@
         onkeydown={(e) => e.key === 'Enter' && submitEdit()}
         class="rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
       />
+      <input
+        bind:value={eUrl}
+        placeholder="🔗 Link (optional) — we'll grab a preview"
+        maxlength="500"
+        onkeydown={(e) => e.key === 'Enter' && submitEdit()}
+        class="rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
+      />
       <textarea
         bind:value={eNote}
         placeholder="Details (optional) — the why / how, shown beneath the title"
@@ -495,6 +560,7 @@
       </div>
     </div>
   {:else}
+    {@const img = cardImage(it)}
     <div class="group flex flex-col gap-1 rounded-lg border-2 border-sand-200 bg-white px-2.5 py-2">
       <div class="flex items-center gap-2">
       {#if it.time}
@@ -548,8 +614,44 @@
       {/if}
       </div>
 
+      <!-- Rich media (#to-decide-cards): a photo (uploaded > unfurled preview)
+           and/or a link give a decision like "where do we eat tonight" the same
+           depth planning's location cards have. Only rendered when present. -->
+      {#if img.src}
+        <div class="relative mt-1 h-28 w-full overflow-hidden rounded-lg">
+          <img src={img.src} alt={it.label} class="h-full w-full object-cover" loading="lazy" />
+          {#if uploadingId === it.id}
+            <div class="absolute inset-0 grid place-items-center bg-cocoa-900/40 font-body text-xs font-extrabold text-white">Uploading…</div>
+          {/if}
+        </div>
+      {/if}
+
       {#if it.note}
         <p class="whitespace-pre-line font-body text-[13px] font-semibold leading-snug text-cocoa-600">{it.note}</p>
+      {/if}
+
+      {#if it.url || canManage(it)}
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
+          {#if it.url}
+            <a href={it.url} target="_blank" rel="noopener noreferrer" class="truncate font-body text-[12px] font-extrabold text-coral-600 underline">{cardDomain(it.url) || 'link'} ↗</a>
+          {/if}
+          {#if canManage(it)}
+            <button
+              type="button"
+              onclick={() => pickPhotoFor(it.id)}
+              disabled={busy || uploadingId === it.id}
+              class="font-body text-[12px] font-extrabold text-cocoa-400 transition hover:text-coral-600"
+            >📷 {img.isCustom ? 'Replace photo' : 'Add photo'}</button>
+            {#if img.isCustom}
+              <button
+                type="button"
+                onclick={() => removePhoto(it.id)}
+                disabled={busy}
+                class="font-body text-[12px] font-extrabold text-cocoa-400 transition hover:text-berry-600"
+              >Remove photo</button>
+            {/if}
+          {/if}
+        </div>
       {/if}
     </div>
   {/if}
@@ -578,6 +680,13 @@
       bind:value={niPlace}
       placeholder="📍 Navigate to… (place, address, or lat,lng) — optional"
       maxlength="300"
+      onkeydown={(e) => e.key === 'Enter' && submitAdd()}
+      class="rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
+    />
+    <input
+      bind:value={niUrl}
+      placeholder="🔗 Link (optional) — we'll grab a preview"
+      maxlength="500"
       onkeydown={(e) => e.key === 'Enter' && submitAdd()}
       class="rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[13.5px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
     />

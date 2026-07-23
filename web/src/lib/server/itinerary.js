@@ -10,6 +10,16 @@
 const dateOnly = (d) => String(d ?? '').slice(0, 10);
 
 /**
+ * Same-origin URL for an item's uploaded picture (PB serves it at
+ * /api/files/{collection}/{id}/{file}; Caddy proxies it). Kept inline here — a
+ * plain string build — so this module stays dependency-free and unit-testable.
+ * '416x224' matches the field's thumb size (see the itinerary_media migration).
+ * @param {{ id: string, image?: string | null }} it
+ */
+const itemImageUrl = (it) =>
+  it.image ? `/api/files/itinerary_items/${it.id}/${encodeURIComponent(it.image)}?thumb=416x224` : '';
+
+/**
  * @param {Array<any>} items  itinerary_items rows (trip, date, time, label, kind, sort_order, created_by)
  * @param {Array<any>} votes  itinerary_votes rows (itinerary_item, participant)
  * @param {Record<string,string>} nameById    participant id → display name
@@ -37,6 +47,14 @@ export function shapeItinerary(items, votes, nameById, avatarById, myParticipant
     place: it.place || '',
     // Optional longer detail, shown wrapped beneath the short label.
     note: it.note || '',
+    // Rich media (#to-decide-cards): an optional link + picture + cached link
+    // preview, mirroring planning's location cards. Custom image wins over the
+    // unfurled og:image at render time (see cardImage in $lib/locationCard.js).
+    url: it.url || '',
+    image: itemImageUrl(it),
+    previewImage: it.preview_image || '',
+    previewTitle: it.preview_title || '',
+    previewDescription: it.preview_description || '',
     // Default empty/legacy kind to 'flexible' (pre-v2 items were votable).
     kind: it.kind === 'fixed' ? 'fixed' : 'flexible',
     sortOrder: it.sort_order ?? 0,

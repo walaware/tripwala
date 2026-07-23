@@ -70,3 +70,36 @@ test('ignores votes for deleted items and handles empty input', () => {
   assert.equal(item.votes, 0);
   assert.equal(item.mine, false);
 });
+
+test('shapes rich media: link, cached preview, and a thumbed image URL', () => {
+  const items = [
+    {
+      id: 'i1',
+      date: '',
+      label: 'Where do we eat tonight?',
+      kind: 'flexible',
+      sort_order: 0,
+      url: 'https://example.com/spot',
+      image: 'photo_abc.jpg',
+      preview_image: 'https://cdn/og.png',
+      preview_title: 'The Spot',
+      preview_description: 'Great tacos'
+    }
+  ];
+  const [item] = shapeItinerary(items, [], names, avatars, null);
+  assert.equal(item.url, 'https://example.com/spot');
+  assert.equal(item.previewImage, 'https://cdn/og.png');
+  assert.equal(item.previewTitle, 'The Spot');
+  assert.equal(item.previewDescription, 'Great tacos');
+  assert.equal(item.image, '/api/files/itinerary_items/i1/photo_abc.jpg?thumb=416x224');
+});
+
+test('media fields default to empty strings when absent (back-compat)', () => {
+  const items = [{ id: 'i1', date: '', label: 'Legacy', sort_order: 0 }];
+  const [item] = shapeItinerary(items, [], names, avatars, null);
+  assert.equal(item.url, '');
+  assert.equal(item.image, '');
+  assert.equal(item.previewImage, '');
+  assert.equal(item.previewTitle, '');
+  assert.equal(item.previewDescription, '');
+});

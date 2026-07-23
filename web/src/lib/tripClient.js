@@ -27,3 +27,22 @@ export async function tripAction(shareToken, body) {
   }
   return res.json();
 }
+
+/**
+ * Multipart variant for ops that carry a file (e.g. itin_item_image). Sends the
+ * op + ids as form fields alongside the File; the /actions endpoint detects the
+ * multipart content-type and routes it the same way as a JSON op. Mirrors
+ * planUpload.
+ *
+ * @param {string} shareToken
+ * @param {Record<string, string>} fields must include `op` (and usually `itemId`)
+ * @param {File} file
+ */
+export async function tripUpload(shareToken, fields, file) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  fd.append('image', file, file.name || 'photo');
+  const res = await fetch(`/${encodeURIComponent(shareToken)}/actions`, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error(`Trip upload "${fields.op}" failed (${res.status})`);
+  return res.json();
+}
