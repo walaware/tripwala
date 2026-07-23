@@ -23,7 +23,11 @@ import https from 'node:https';
 const TIMEOUT_MS = 5000;
 const MAX_BYTES = 1_500_000;
 const MAX_REDIRECTS = 3;
-const USER_AGENT = 'Mozilla/5.0 (compatible; tripwala-link-preview/1.0; +https://tripwala.enzoiwith.us)';
+// A real desktop-browser UA — many outdoor sites (AllTrails, etc.) only emit OG
+// tags to a browser-looking client and 403 an obvious bot UA. We still don't run
+// JS or request compression, so this is just "look like a browser fetching HTML".
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
 /** Parse an IPv4 string to its 32-bit integer, or null. */
 function ipv4ToInt(/** @type {string} */ ip) {
@@ -165,9 +169,11 @@ function requestOnce(u, signal) {
         lookup: guardedLookup,
         signal,
         headers: {
-          // Many sites only emit OG tags to a "real" browser/crawler UA.
+          // Look like a real browser fetching HTML — many sites gate OG tags on
+          // this. No accept-encoding: we don't decompress, so we want identity.
           'user-agent': USER_AGENT,
-          accept: 'text/html,application/xhtml+xml'
+          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'accept-language': 'en-US,en;q=0.9'
         }
       },
       (res) => resolve(res)

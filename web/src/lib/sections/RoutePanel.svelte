@@ -12,6 +12,7 @@
   import { tempUnit, unitSystem } from '$lib/prefs.js';
   import { parseGpx, decimate, toCoordinates, fromCoordinates, elevationProfile, cumulativeDistances, projectOntoRoute, haversine } from '$lib/gpx.js';
   import { emojiOf, ON_ROUTE_CATS } from '$lib/pinCategories.js';
+  import { linkDisplayName, hostLabel } from '$lib/linkName.js';
   import ElevationProfile from '$lib/ui/ElevationProfile.svelte';
 
   /**
@@ -198,8 +199,8 @@
         <span class="grid h-11 w-11 flex-none place-items-center rounded-lg bg-sand-100 text-lg">🔗</span>
       {/if}
       <span class="min-w-0">
-        <span class="block truncate font-body text-[13px] font-extrabold text-cocoa-900">{route.preview?.title || route.url}</span>
-        <span class="block truncate font-body text-[12px] font-bold text-cocoa-400">View the trail ↗</span>
+        <span class="block truncate font-body text-[13px] font-extrabold text-cocoa-900">{linkDisplayName(route.url, route.preview?.title)}</span>
+        <span class="block truncate font-body text-[12px] font-bold text-cocoa-400">{hostLabel(route.url) || 'View the trail'} ↗</span>
       </span>
     </a>
   {/if}

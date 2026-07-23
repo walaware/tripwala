@@ -11,6 +11,7 @@ import { claimQty, canTogglePacking, canRecommend } from '$lib/bring.js';
 import { unfurl } from '$lib/server/unfurl.js';
 import { hasCoords, clampNum } from '$lib/coords.js';
 import { sanitizeCoordinates, trackStats, fromCoordinates } from '$lib/gpx.js';
+import { linkDisplayName } from '$lib/linkName.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the itinerary image field cap
 
@@ -1149,16 +1150,20 @@ export async function POST({ params, request, locals, url }) {
         if (!/^https?:\/\/.+/i.test(url)) throw error(400, 'Enter a full http(s):// trail link');
         const prev = trip.route && typeof trip.route === 'object' ? trip.route : {};
         let preview = null;
-        let name = prev.name || '';
+        let ogTitle = '';
         try {
           const u = await unfurl(url); // SSRF-guarded inside
           if (u) {
             preview = { title: u.title || '', image: u.image || '', description: u.description || '' };
-            if (!name && u.title) name = String(u.title).slice(0, 120);
+            ogTitle = u.title || '';
           }
         } catch (_) {
           /* link stands without a preview */
         }
+        // Prefer an imported track's name; else the OG title; else a name derived
+        // from the URL slug (so a Cloudflare-blocked AllTrails link still reads
+        // "Big Pine Lakes Trail", not a bare URL).
+        const name = prev.name || linkDisplayName(url, ogTitle);
         await pb.collection('trips').update(trip.id, {
           route: { name, url, preview, coordinates: prev.coordinates || [], stats: prev.stats || null }
         });
