@@ -736,6 +736,17 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
+      // Cross out (or restore) a decision option — organizer only (#cross-option).
+      // The option is kept for reference but ruled out; only flexible option rows
+      // (undated, under a question) can be crossed — not fixed entries or questions.
+      case 'itin_item_cross': {
+        if (!isOrganizer) throw error(403, 'Only organizers can cross out options');
+        const item = await inTrip('itinerary_items', String(body.itemId ?? ''));
+        if ((item.kind || 'flexible') !== 'flexible' || !item.group) throw error(400, 'Only decision options can be crossed out');
+        await pb.collection('itinerary_items').update(item.id, { crossed: !!body.crossed });
+        break;
+      }
+
       // Toggle my upvote on a flexible item/option (any member). Only flexible
       // rows are votable — fixed entries and question groups aren't.
       case 'itin_vote': {

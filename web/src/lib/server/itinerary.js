@@ -61,6 +61,9 @@ export function shapeItinerary(items, votes, nameById, avatarById, myParticipant
     kind: it.kind === 'fixed' ? 'fixed' : it.kind === 'question' ? 'question' : 'flexible',
     // The question this row is an option of (null for questions + standalone items).
     group: it.group || null,
+    // Organizer ruled this option out (#cross-option): kept for reference but
+    // struck through, shrunk, and sorted to the bottom of its question.
+    crossed: !!it.crossed,
     sortOrder: it.sort_order ?? 0,
     createdBy: it.created_by || null,
     createdByName: it.created_by ? (nameById[it.created_by] ?? 'Someone') : null,

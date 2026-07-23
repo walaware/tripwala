@@ -123,3 +123,13 @@ test('media fields default to empty strings when absent (back-compat)', () => {
   assert.equal(item.previewTitle, '');
   assert.equal(item.previewDescription, '');
 });
+
+test('passes the crossed flag through (defaults false)', () => {
+  const items = [
+    { id: 'live', date: '', label: 'Site A', kind: 'flexible', group: 'q1', sort_order: 0 },
+    { id: 'out', date: '', label: 'Site B', kind: 'flexible', group: 'q1', sort_order: 1, crossed: true }
+  ];
+  const map = Object.fromEntries(shapeItinerary(items, [], names, avatars, null).map((x) => [x.id, x.crossed]));
+  assert.equal(map.live, false);
+  assert.equal(map.out, true);
+});

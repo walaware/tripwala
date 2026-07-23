@@ -8,7 +8,7 @@
   import { cardImage, cardDomain } from '$lib/locationCard.js';
 
   /**
-   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible'|'question', group: string|null, sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
+   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible'|'question', group: string|null, crossed: boolean, sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
    */
 
   /**
@@ -84,8 +84,9 @@
     /** @type {Record<string, ItinItem[]>} */
     const m = {};
     for (const it of undated) if (it.kind !== 'question' && it.group) (m[it.group] ??= []).push(it);
-    // Front-runner rises to the top; ties keep insertion order (sortOrder).
-    for (const k in m) m[k].sort((a, b) => b.votes - a.votes || a.sortOrder - b.sortOrder);
+    // Crossed-out options sink to the bottom (ruled out, kept for reference);
+    // among live options the front-runner rises, ties keep insertion order.
+    for (const k in m) m[k].sort((a, b) => Number(a.crossed) - Number(b.crossed) || b.votes - a.votes || a.sortOrder - b.sortOrder);
     return m;
   });
   // Defensive: any undated flexible item without a question (shouldn't happen post
@@ -325,6 +326,8 @@
   const vote = (itemId) => run({ op: 'itin_vote', itemId });
   /** @param {string} itemId */
   const removeItem = (itemId) => run({ op: 'itin_item_remove', itemId });
+  /** Organizer rules an option out / back in. @param {string} itemId @param {boolean} crossed */
+  const crossOption = (itemId, crossed) => run({ op: 'itin_item_cross', itemId, crossed });
 
   // ---- Photo upload (creator or organizer; same rule as edit/remove) ----
   /** @param {string} id */
@@ -703,6 +706,23 @@
         </div>
       </div>
     </div>
+  {:else if it.crossed}
+    <!-- Crossed-out option (#cross-option): ruled out by an organizer. Kept for
+         reference but shrunk + struck through + sunk to the bottom, so it's clear
+         it isn't a live choice. Organizer can restore it. -->
+    <div class="group flex items-center gap-2 rounded-md border border-dashed border-sand-300 bg-sand-100/60 px-2 py-1">
+      <span class="flex-none text-[11px] opacity-60" aria-hidden="true">🚫</span>
+      <span class="min-w-0 flex-1 truncate font-body text-[12.5px] font-bold text-cocoa-400 line-through">{it.label}</span>
+      {#if it.votes}
+        <span class="flex-none font-body text-[11px] font-bold text-cocoa-400" title="Votes when it was ruled out">{it.votes} ▲</span>
+      {/if}
+      {#if ownerMode}
+        <button type="button" onclick={() => crossOption(it.id, false)} disabled={busy} class="flex-none rounded-full px-1.5 font-body text-[11px] font-extrabold text-cocoa-400 transition hover:text-coral-600">Restore</button>
+      {/if}
+      {#if canManage(it)}
+        <button type="button" aria-label="Remove" onclick={() => removeItem(it.id)} disabled={busy} class="flex-none rounded-full px-1 font-body text-[11px] font-bold text-cocoa-400 transition hover:text-berry-600">✕</button>
+      {/if}
+    </div>
   {:else}
     {@const img = cardImage(it)}
     <div class="group flex flex-col gap-1 rounded-lg border-2 border-sand-200 bg-white px-2.5 py-2">
@@ -753,6 +773,9 @@
       {#if canManage(it)}
         <span class="flex flex-none items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
           <button type="button" aria-label="Edit" onclick={() => openEdit(it)} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-coral-600">Edit</button>
+          {#if ownerMode && it.kind === 'flexible' && it.group}
+            <button type="button" aria-label="Cross out this option" title="Cross out — rule this option out" onclick={() => crossOption(it.id, true)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">Cross out</button>
+          {/if}
           <button type="button" aria-label="Remove" onclick={() => removeItem(it.id)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">✕</button>
         </span>
       {/if}
@@ -777,7 +800,18 @@
       {#if it.url || canManage(it)}
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
           {#if it.url}
-            <a href={it.url} target="_blank" rel="noopener noreferrer" class="truncate font-body text-[12px] font-extrabold text-coral-600 underline">{cardDomain(it.url) || 'link'} ↗</a>
+            <!-- Compact link chip: just the site name, hard-bounded so a long URL
+                 never spills into the row. Full link on hover / in the new tab. -->
+            <a
+              href={it.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={it.url}
+              class="inline-flex max-w-[190px] items-center gap-1 rounded-full bg-sand-100 px-2 py-0.5 font-body text-[11.5px] font-extrabold text-coral-600 transition hover:bg-coral-100"
+            >
+              <span class="flex-none leading-none" aria-hidden="true">🔗</span>
+              <span class="truncate">{cardDomain(it.url) || 'link'}</span>
+            </a>
           {/if}
           {#if canManage(it)}
             <button
