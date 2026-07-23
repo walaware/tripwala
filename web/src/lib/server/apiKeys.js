@@ -34,8 +34,13 @@ const TOKEN_DURATION = 31_536_000;
 
 const MAX_LABEL = 60;
 
-/** A never-used random password (personal keys have no interactive login). */
-const randomSecret = () => randomUUID() + randomUUID();
+/**
+ * A never-used random password (personal keys have no interactive login).
+ * PocketBase's password field caps at 70 chars ("must be less than 71"), so two
+ * raw UUIDs (72 chars) overflow it and 400 the create — cap the concatenation at
+ * 70. A full UUID plus 34 more chars is ample entropy for a secret never revealed.
+ */
+const randomSecret = () => (randomUUID() + randomUUID()).slice(0, 70);
 
 /**
  * A short, non-secret fingerprint of a token for the key list ("which key is
