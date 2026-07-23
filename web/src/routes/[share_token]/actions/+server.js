@@ -12,6 +12,7 @@ import { unfurl } from '$lib/server/unfurl.js';
 import { hasCoords, clampNum } from '$lib/coords.js';
 import { sanitizeCoordinates, trackStats, fromCoordinates } from '$lib/gpx.js';
 import { linkDisplayName } from '$lib/linkName.js';
+import { generateInviteToken } from '$lib/server/tokens.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the itinerary image field cap
 
@@ -84,11 +85,18 @@ export async function POST({ params, request, locals, url }) {
 
   // The link an emailed invite must carry: the share slug PLUS the trip's invite
   // capability token (#2). Without the token the recipient lands on the view-only
-  // teaser with no way to join.
-  const joinUrl = () =>
-    trip.invite_token
-      ? `${url.origin}/${trip.share_token}?invite=${encodeURIComponent(trip.invite_token)}`
-      : `${url.origin}/${trip.share_token}`;
+  // teaser with no way to join — so we never emit a token-less link. Trips created
+  // before the invite_token feature (or that missed its backfill migration) have
+  // an empty token; mint one lazily and persist it the first time we need it, so
+  // every emailed invite is joinable regardless of the trip's vintage.
+  async function joinUrl() {
+    if (!trip.invite_token) {
+      const token = generateInviteToken();
+      await pb.collection('trips').update(trip.id, { invite_token: token });
+      trip.invite_token = token; // keep the in-memory row consistent for later ops
+    }
+    return `${url.origin}/${trip.share_token}?invite=${encodeURIComponent(trip.invite_token)}`;
+  }
 
   const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   /** Normalize + validate an invite address. Stored lowercased. @param {unknown} raw */
@@ -1028,7 +1036,7 @@ export async function POST({ params, request, locals, url }) {
             to,
             tripName: trip.name,
             inviterName: me.display_name || 'Someone',
-            inviteUrl: joinUrl()
+            inviteUrl: await joinUrl()
           });
         } catch (/** @type {any} */ e) {
           throw error(502, 'Could not send the email — check the address and try again');
@@ -1064,7 +1072,7 @@ export async function POST({ params, request, locals, url }) {
             to: inv.email,
             tripName: trip.name,
             inviterName: me.display_name || 'Someone',
-            inviteUrl: joinUrl()
+            inviteUrl: await joinUrl()
           });
         } catch (/** @type {any} */ e) {
           throw error(502, 'Could not send the email — try again in a moment');
@@ -1098,7 +1106,7 @@ export async function POST({ params, request, locals, url }) {
               to: email,
               tripName: trip.name,
               inviterName: me.display_name || 'Someone',
-              inviteUrl: joinUrl()
+              inviteUrl: await joinUrl()
             });
             emailed = true;
             await pb.collection('invites').update(inviteId, { last_sent: new Date().toISOString() });
