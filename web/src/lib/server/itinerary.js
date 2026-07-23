@@ -56,7 +56,11 @@ export function shapeItinerary(items, votes, nameById, avatarById, myParticipant
     previewTitle: it.preview_title || '',
     previewDescription: it.preview_description || '',
     // Default empty/legacy kind to 'flexible' (pre-v2 items were votable).
-    kind: it.kind === 'fixed' ? 'fixed' : 'flexible',
+    // 'question' groups a decision ("Where to camp?"); its options are the
+    // flexible rows pointing at it via `group` (see the itinerary_groups migration).
+    kind: it.kind === 'fixed' ? 'fixed' : it.kind === 'question' ? 'question' : 'flexible',
+    // The question this row is an option of (null for questions + standalone items).
+    group: it.group || null,
     sortOrder: it.sort_order ?? 0,
     createdBy: it.created_by || null,
     createdByName: it.created_by ? (nameById[it.created_by] ?? 'Someone') : null,

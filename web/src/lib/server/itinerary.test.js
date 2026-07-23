@@ -32,6 +32,26 @@ test('defaults empty/legacy kind to flexible; keeps fixed', () => {
   assert.equal(map.b, 'flexible');
 });
 
+test('keeps the question kind and passes group through (decision grouping)', () => {
+  const items = [
+    { id: 'q', date: '', label: 'Where to camp?', kind: 'question', sort_order: 0 },
+    { id: 'o1', date: '', label: 'Fallen Leaf', kind: 'flexible', sort_order: 0, group: 'q' },
+    { id: 'o2', date: '', label: 'Sunset', kind: 'flexible', sort_order: 1, group: 'q' }
+  ];
+  const map = Object.fromEntries(shapeItinerary(items, [], names, avatars, null).map((x) => [x.id, x]));
+  assert.equal(map.q.kind, 'question');
+  assert.equal(map.q.group, null);
+  assert.equal(map.o1.kind, 'flexible');
+  assert.equal(map.o1.group, 'q');
+  assert.equal(map.o2.group, 'q');
+});
+
+test('group defaults to null for ungrouped items (back-compat)', () => {
+  const items = [{ id: 'i1', date: '', label: 'Legacy', sort_order: 0 }];
+  const [item] = shapeItinerary(items, [], names, avatars, null);
+  assert.equal(item.group, null);
+});
+
 test('carries creator name + avatar', () => {
   const items = [{ id: 'i1', date: '', label: 'Movie?', kind: 'flexible', sort_order: 0, created_by: 'p1' }];
   const [item] = shapeItinerary(items, [], names, avatars, null);

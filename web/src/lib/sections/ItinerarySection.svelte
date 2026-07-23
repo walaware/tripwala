@@ -8,7 +8,7 @@
   import { cardImage, cardDomain } from '$lib/locationCard.js';
 
   /**
-   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible', sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
+   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible'|'question', group: string|null, sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
    */
 
   /**
@@ -73,6 +73,24 @@
     return m;
   });
   const undated = $derived(itineraryItems.filter((it) => !it.date));
+
+  // Decisions are grouped (#decision-groups): a question ("Where to camp?") with
+  // options the crew adds and upvotes. Both live in the undated bucket — questions
+  // carry kind='question', options are flexible rows pointing at one via `group`.
+  const questions = $derived(
+    undated.filter((it) => it.kind === 'question').sort((a, b) => a.sortOrder - b.sortOrder)
+  );
+  const optionsByGroup = $derived.by(() => {
+    /** @type {Record<string, ItinItem[]>} */
+    const m = {};
+    for (const it of undated) if (it.kind !== 'question' && it.group) (m[it.group] ??= []).push(it);
+    // Front-runner rises to the top; ties keep insertion order (sortOrder).
+    for (const k in m) m[k].sort((a, b) => b.votes - a.votes || a.sortOrder - b.sortOrder);
+    return m;
+  });
+  // Defensive: any undated flexible item without a question (shouldn't happen post
+  // migration, but never silently drop one) renders as a loose card.
+  const orphanOptions = $derived(undated.filter((it) => it.kind !== 'question' && !it.group));
   /** @param {string} key YYYY-MM-DD */
   const keyLabel = (key) => `${fmtWeekday(`${key}T00:00:00.000Z`)} ${fmtMonthDay(`${key}T00:00:00.000Z`)}`;
   const groups = $derived.by(() => {
@@ -179,7 +197,8 @@
   /** @param {string} cityId */
   const removeCity = (cityId) => run({ op: 'city_remove', cityId });
 
-  // One open "add" form at a time, keyed by day ('' = the To-decide bucket).
+  // One open "add" form at a time, keyed by day. A key of `group:<questionId>`
+  // opens the "add an option" form under that decision.
   /** @type {string | null} */
   let addKey = $state(null);
   let niLabel = $state('');
@@ -198,6 +217,44 @@
   let eUrl = $state('');
   /** @type {'fixed'|'flexible'} */
   let eKind = $state('flexible');
+
+  // Decision questions: a titled group ("Where to camp?"). Add form + inline
+  // title editor, both just a label (options carry all the other affordances).
+  let qFormOpen = $state(false);
+  let qLabel = $state('');
+  let qEditId = $state('');
+  let qeLabel = $state('');
+  function openQuestionAdd() {
+    qEditId = '';
+    qFormOpen = true;
+    qLabel = '';
+  }
+  async function submitQuestionAdd() {
+    if (!qLabel.trim()) return;
+    await run({ op: 'itin_item_add', label: qLabel.trim(), kind: 'question' });
+    qFormOpen = false;
+    qLabel = '';
+  }
+  /** @param {ItinItem} q */
+  function openQuestionEdit(q) {
+    qFormOpen = false;
+    qEditId = q.id;
+    qeLabel = q.label;
+  }
+  async function submitQuestionEdit() {
+    if (!qeLabel.trim()) return;
+    await run({ op: 'itin_item_update', itemId: qEditId, label: qeLabel.trim() });
+    qEditId = '';
+  }
+  /** Remove a whole decision — confirm first, since its options go with it. */
+  function removeQuestion(/** @type {ItinItem} */ q) {
+    const n = (optionsByGroup[q.id] ?? []).length;
+    const msg = n
+      ? `Delete "${q.label}" and its ${n} option${n === 1 ? '' : 's'}?`
+      : `Delete "${q.label}"?`;
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return;
+    return run({ op: 'itin_item_remove', itemId: q.id });
+  }
 
   // Per-item photo upload (#to-decide-cards): one hidden input, aimed at one
   // item at a time, mirroring PlanLocationSection's camera flow.
@@ -233,10 +290,15 @@
   }
   async function submitAdd() {
     if (!niLabel.trim() || addKey === null) return;
-    const date = addKey || undefined;
-    // Undated entries are always suggestions (decisions to vote on).
-    const kind = addKey === '' ? 'flexible' : niKind;
-    await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), note: niNote.trim(), url: niUrl.trim(), date, kind });
+    if (addKey.startsWith('group:')) {
+      // An option under a decision — undated flexible row linked to its question.
+      const groupId = addKey.slice('group:'.length);
+      await run({ op: 'itin_item_add', label: niLabel.trim(), place: niPlace.trim(), note: niNote.trim(), url: niUrl.trim(), groupId });
+    } else {
+      const date = addKey || undefined;
+      const kind = niKind;
+      await run({ op: 'itin_item_add', label: niLabel.trim(), time: niTime.trim(), place: niPlace.trim(), note: niNote.trim(), url: niUrl.trim(), date, kind });
+    }
     addKey = null;
   }
 
@@ -248,7 +310,9 @@
     ePlace = it.place;
     eNote = it.note;
     eUrl = it.url;
-    eKind = it.kind;
+    // itemRow only edits options / dated entries — questions have their own title
+    // editor — so kind is only ever fixed or flexible here.
+    eKind = it.kind === 'fixed' ? 'fixed' : 'flexible';
   }
   async function submitEdit() {
     if (!eLabel.trim()) return;
@@ -354,27 +418,54 @@
     </div>
   {/if}
 
-  <!-- Open decisions surface at the TOP: undated suggestions the crew upvotes
-       (primary-soft block), not buried at the bottom of the plan. -->
-  {#if undated.length || canVote}
+  <!-- Open decisions surface at the TOP: each is a QUESTION ("Where to camp?")
+       with options the crew adds and upvotes (primary-soft block), not buried at
+       the bottom of the plan. -->
+  {#if questions.length || orphanOptions.length || canVote}
     <div class="mb-4 rounded-xl p-3" style="background: var(--color-primary-soft)">
       <div class="mb-2 flex items-center gap-2 px-0.5">
         <span class="font-display text-[14px] font-bold" style="color: var(--color-primary-press, var(--color-coral-700))">🤔 To decide</span>
         <span class="h-px flex-1" style="background: color-mix(in srgb, var(--color-primary-press, #b45309) 20%, transparent)"></span>
       </div>
-      <div class="flex flex-col gap-1.5">
-        {#each undated as it (it.id)}
-          {@render itemRow(it)}
+      <div class="flex flex-col gap-3">
+        {#each questions as q (q.id)}
+          {@render questionBlock(q)}
         {/each}
+
+        <!-- Legacy safety: options with no question still show (see orphanOptions). -->
+        {#if orphanOptions.length}
+          <div class="flex flex-col gap-1.5">
+            {#each orphanOptions as it (it.id)}
+              {@render itemRow(it)}
+            {/each}
+          </div>
+        {/if}
+
         {#if canVote}
-          {#if addKey === ''}
-            {@render addForm(true)}
+          {#if qFormOpen}
+            <div class="flex flex-col gap-2 rounded-lg bg-sand-100 p-2.5 sm:flex-row sm:items-end">
+              <div class="flex-1">
+                <label class="mb-0.5 block font-body text-[11px] font-extrabold uppercase tracking-wide text-cocoa-400" for="q-label">Question</label>
+                <input
+                  id="q-label"
+                  bind:value={qLabel}
+                  placeholder="Where should we camp?"
+                  maxlength="200"
+                  onkeydown={(e) => e.key === 'Enter' && submitQuestionAdd()}
+                  class="w-full rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
+                />
+              </div>
+              <div class="flex gap-2">
+                <Button variant="soft" size="sm" onclick={submitQuestionAdd} disabled={busy || !qLabel.trim()}>Add</Button>
+                <Button variant="ghost" size="sm" onclick={() => (qFormOpen = false)} disabled={busy}>Cancel</Button>
+              </div>
+            </div>
           {:else}
             <button
               type="button"
-              onclick={() => openAdd('')}
+              onclick={openQuestionAdd}
               class="self-start rounded-full px-2.5 py-1 font-body text-[13px] font-extrabold text-coral-600 transition hover:bg-coral-100"
-            >＋ Add a decision</button>
+            >＋ Add a question</button>
           {/if}
         {/if}
       </div>
@@ -511,6 +602,59 @@
       {/if}
     </div>
   {/if}
+{/snippet}
+
+{#snippet questionBlock(/** @type {ItinItem} */ q)}
+  {@const opts = optionsByGroup[q.id] ?? []}
+  <div class="rounded-xl border-2 border-sand-200 bg-white/70 p-2.5">
+    {#if qEditId === q.id}
+      <div class="mb-2 flex items-center gap-2">
+        <input
+          bind:value={qeLabel}
+          maxlength="200"
+          onkeydown={(e) => e.key === 'Enter' && submitQuestionEdit()}
+          class="flex-1 rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-coral-400"
+        />
+        <Button variant="soft" size="sm" onclick={submitQuestionEdit} disabled={busy || !qeLabel.trim()}>Save</Button>
+        <Button variant="ghost" size="sm" onclick={() => (qEditId = '')} disabled={busy}>Cancel</Button>
+      </div>
+    {:else}
+      <div class="group mb-2 flex items-center gap-2 px-0.5">
+        <span class="min-w-0 flex-1 truncate font-display text-[14px] font-bold text-berry-600">🗳️ {q.label}</span>
+        {#if opts.length}
+          <span class="flex-none font-body text-[11.5px] font-extrabold text-cocoa-400">{opts.length} option{opts.length === 1 ? '' : 's'}</span>
+        {/if}
+        {#if canManage(q)}
+          <span class="flex flex-none items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+            <button type="button" aria-label="Rename question" onclick={() => openQuestionEdit(q)} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-coral-600">Edit</button>
+            <button type="button" aria-label="Remove question" onclick={() => removeQuestion(q)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">✕</button>
+          </span>
+        {/if}
+      </div>
+    {/if}
+
+    <div class="flex flex-col gap-1.5">
+      {#each opts as it (it.id)}
+        {@render itemRow(it)}
+      {:else}
+        {#if !canManage(q) && !canVote}
+          <p class="px-0.5 font-body text-[13px] font-semibold text-cocoa-400">No options yet.</p>
+        {/if}
+      {/each}
+
+      {#if canVote}
+        {#if addKey === `group:${q.id}`}
+          {@render addForm(true)}
+        {:else}
+          <button
+            type="button"
+            onclick={() => openAdd(`group:${q.id}`)}
+            class="self-start rounded-full px-2.5 py-1 font-body text-[13px] font-extrabold text-coral-600 transition hover:bg-coral-100"
+          >＋ Add an option</button>
+        {/if}
+      {/if}
+    </div>
+  </div>
 {/snippet}
 
 {#snippet itemRow(/** @type {ItinItem} */ it)}
@@ -670,7 +814,7 @@
       {/if}
       <input
         bind:value={niLabel}
-        placeholder={decisions ? 'What should the group decide?' : niKind === 'fixed' ? 'Check-in, dinner reservation…' : 'Beach day, mini golf…'}
+        placeholder={decisions ? 'Add an option — a place, a plan…' : niKind === 'fixed' ? 'Check-in, dinner reservation…' : 'Beach day, mini golf…'}
         maxlength="200"
         onkeydown={(e) => e.key === 'Enter' && submitAdd()}
         class="flex-1 rounded-md border-2 border-sand-300 bg-white px-3 py-2 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-coral-400"

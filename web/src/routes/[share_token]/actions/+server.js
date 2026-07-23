@@ -594,18 +594,33 @@ export async function POST({ params, request, locals, url }) {
       // and upvotes flexible ones; the item's creator or an organizer edits/removes.
 
       // Add a plan item. `date` optional (omit → an undated decision). `kind`
-      // defaults to flexible (a suggestion); pass 'fixed' for a set schedule entry.
+      // defaults to flexible (a suggestion); pass 'fixed' for a set schedule entry
+      // or 'question' for a decision group ("Where to camp?"). An option is added
+      // by passing `groupId` (a question's id) → it's an undated flexible row that
+      // points at its question and inherits the whole option card (place/photo/vote).
       case 'itin_item_add': {
         const label = String(body.label ?? '').trim().slice(0, 200);
         if (!label) throw error(400, 'Name the entry');
-        const date = String(body.date ?? '').slice(0, 10);
+        // Resolve the parent question first (an option belongs to one).
+        const groupId = String(body.groupId ?? '').trim();
+        let group = '';
+        if (groupId) {
+          const q = await inTrip('itinerary_items', groupId);
+          if ((q.kind || '') !== 'question') throw error(400, "That decision can't take options");
+          group = q.id;
+        }
+        // Options are always undated flexible suggestions; questions are always
+        // undated too. Only free-standing entries carry a date / fixed kind.
+        const kind = group ? 'flexible' : body.kind === 'fixed' ? 'fixed' : body.kind === 'question' ? 'question' : 'flexible';
+        const isDecision = kind === 'question' || !!group;
+        const date = isDecision ? '' : String(body.date ?? '').slice(0, 10);
         if (date && !DATE_ONLY.test(date)) throw error(400, 'Bad date');
-        const time = String(body.time ?? '').trim().slice(0, 40);
-        const place = String(body.place ?? '').trim().slice(0, 300);
-        const note = String(body.note ?? '').trim().slice(0, 600);
-        const url = String(body.url ?? '').trim();
+        // A question is just a titled group — no time/place/note/link of its own.
+        const time = kind === 'question' ? '' : String(body.time ?? '').trim().slice(0, 40);
+        const place = kind === 'question' ? '' : String(body.place ?? '').trim().slice(0, 300);
+        const note = kind === 'question' ? '' : String(body.note ?? '').trim().slice(0, 600);
+        const url = kind === 'question' ? '' : String(body.url ?? '').trim();
         if (url && !/^https?:\/\/.+/i.test(url)) throw error(400, 'Links need http(s)://');
-        const kind = body.kind === 'fixed' ? 'fixed' : 'flexible';
         const sameDay = pb.filter('trip = {:t} && date = {:d}', {
           t: trip.id,
           d: date ? `${date} 00:00:00.000Z` : ''
@@ -620,6 +635,7 @@ export async function POST({ params, request, locals, url }) {
           url: url.slice(0, 500),
           label,
           kind,
+          group,
           sort_order: count,
           created_by: me.id
         });
@@ -720,10 +736,11 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
-      // Toggle my upvote on a flexible item (any member). Fixed entries aren't votable.
+      // Toggle my upvote on a flexible item/option (any member). Only flexible
+      // rows are votable — fixed entries and question groups aren't.
       case 'itin_vote': {
         const item = await inTrip('itinerary_items', String(body.itemId ?? ''));
-        if ((item.kind || 'flexible') === 'fixed') throw error(400, "That's a fixed entry — nothing to vote on");
+        if ((item.kind || 'flexible') !== 'flexible') throw error(400, 'Nothing to vote on here');
         const mine = await firstOrNull(
           'itinerary_votes',
           pb.filter('itinerary_item = {:i} && participant = {:p}', { i: item.id, p: me.id })
