@@ -13,6 +13,7 @@
   import TripDetailsForm from '$lib/sections/settings/TripDetailsForm.svelte';
   import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
   import StageSections from '$lib/sections/settings/StageSections.svelte';
+  import { confirmAction } from '$lib/confirm.svelte.js';
 
   /** @type {{ data: any, form?: any }} */
   let { data, form } = $props();
@@ -99,7 +100,7 @@
   // canvas). Leave/delete bounce home; both confirm first.
   async function leave() {
     if (busy) return;
-    if (!confirm('Leave this trip? You can re-join later from the invite link.')) return;
+    if (!(await confirmAction({ title: 'Leave this trip?', message: 'You can re-join later from the invite link.', confirmLabel: 'Leave' }))) return;
     busy = 'leave';
     try {
       await tripAction(shareToken, { op: 'leave_trip' });
@@ -112,13 +113,13 @@
   /** @param {string} status */
   async function setStage(status) {
     if (busy || status === (trip.status || 'confirmed')) return;
-    if (status === 'idea' && !confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
+    if (status === 'idea' && !(await confirmAction({ title: 'Move back to Ideas?', message: 'Everything is kept — it just leaves the calendar until you promote it again.', confirmLabel: 'Move to Ideas' }))) return;
     await act('set_status', { status }, 'stage');
   }
 
   async function deleteTrip() {
     if (busy) return;
-    if (!confirm(`Delete "${trip.name}" permanently? This removes the itinerary, gear, expenses, photo links and everyone's data for this trip. This cannot be undone.`)) return;
+    if (!(await confirmAction({ title: `Delete "${trip.name}"?`, message: "This permanently removes the itinerary, gear, expenses, photo links and everyone's data for this trip. This can't be undone.", confirmLabel: 'Delete trip', danger: true }))) return;
     busy = 'delete';
     try {
       await tripAction(shareToken, { op: 'delete_trip' });

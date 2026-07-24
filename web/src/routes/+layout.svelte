@@ -1,6 +1,7 @@
 <script>
   import '../app.css';
   import { AppShell } from '@walaware/design';
+  import ConfirmHost from '$lib/ui/ConfirmHost.svelte';
   import { page } from '$app/state';
   import { goto, invalidateAll } from '$app/navigation';
   import { createShell } from '$lib/shell.svelte.js';
@@ -214,3 +215,7 @@
   <!-- Logged-out / auth pages bring their own full-bleed chrome. -->
   {@render children()}
 {/if}
+
+<!-- App-wide in-app confirmation dialog (replaces window.confirm, which is
+     suppressed in embedded/automated browsers). Always mounted. -->
+<ConfirmHost />

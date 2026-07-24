@@ -6,6 +6,7 @@
   import { tripDays, fmtWeekday, fmtMonthDay, fmtDateRange, tripLength } from '$lib/format.js';
   import { navUrl } from '$lib/maps.js';
   import { cardImage, cardDomain } from '$lib/locationCard.js';
+  import { confirmAction } from '$lib/confirm.svelte.js';
 
   /**
    * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible'|'question', group: string|null, crossed: boolean, sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
@@ -248,12 +249,12 @@
     qEditId = '';
   }
   /** Remove a whole decision — confirm first, since its options go with it. */
-  function removeQuestion(/** @type {ItinItem} */ q) {
+  async function removeQuestion(/** @type {ItinItem} */ q) {
     const n = (optionsByGroup[q.id] ?? []).length;
-    const msg = n
-      ? `Delete "${q.label}" and its ${n} option${n === 1 ? '' : 's'}?`
-      : `Delete "${q.label}"?`;
-    if (typeof window !== 'undefined' && !window.confirm(msg)) return;
+    const message = n
+      ? `Its ${n} option${n === 1 ? '' : 's'} (and any votes) will be removed too.`
+      : 'This removes the decision.';
+    if (!(await confirmAction({ title: `Delete "${q.label}"?`, message, confirmLabel: 'Delete', danger: true }))) return;
     return run({ op: 'itin_item_remove', itemId: q.id });
   }
 
