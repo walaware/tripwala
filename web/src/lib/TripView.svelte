@@ -19,8 +19,7 @@
   import WrappedSection from '$lib/sections/WrappedSection.svelte';
 
   // Dashboard chrome + compact rail summaries.
-  import TripHeader from '$lib/sections/TripHeader.svelte';
-  import TripBanner from '$lib/sections/TripBanner.svelte';
+  import TripCover from '$lib/sections/TripCover.svelte';
   import StatStrip from '$lib/sections/StatStrip.svelte';
   import MobileHub from '$lib/sections/MobileHub.svelte';
   import OverviewBrief from '$lib/sections/OverviewBrief.svelte';
@@ -314,8 +313,7 @@
   </div>
 {:else if isMobile}
   <!-- Mobile hub & spoke: trip home is a status list; a tap opens a module. -->
-  <TripBanner {trip} />
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} />
+  <TripCover {trip} {emoji} {participants} {isPast} {addActions} />
 
   {#if top}{@render top()}{/if}
 
@@ -337,8 +335,7 @@
     {/if}
   </div>
 {:else}
-  <TripBanner {trip} />
-  <TripHeader {emoji} name={trip.name} {meta} {isPast} {addActions} />
+  <TripCover {trip} {emoji} {participants} {isPast} {addActions} />
 
   {#if top}{@render top()}{/if}
 
