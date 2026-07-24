@@ -17,9 +17,13 @@
 
   const going = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'going').length);
   const maybe = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'maybe').length);
-  // Open decisions = the undated "to decide" suggestions (matches the itinerary's
-  // top decisions block).
-  const decisions = $derived(itineraryItems.filter((/** @type {any} */ i) => !i.date).length);
+  // Open decisions = the undated "To decide" QUESTIONS ("Where to camp?"), not
+  // their options — one question is one open decision no matter how many options
+  // sit under it (matches the itinerary's top decisions block). Legacy ungrouped
+  // decisions (flexible, no question) still count so a pre-grouping trip reads right.
+  const decisions = $derived(
+    itineraryItems.filter((/** @type {any} */ i) => !i.date && (i.kind === 'question' || (i.kind === 'flexible' && !i.group))).length
+  );
 
   // Live countdown (UTC-day granularity), ticking each minute so it rolls over.
   let now = $state(Date.now());

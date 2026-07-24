@@ -94,7 +94,13 @@
     (data.settlement?.net ?? []).find((/** @type {any} */ n) => n.id === currentParticipantId)?.net ?? 0
   );
   const plannedDays = $derived(new Set(itineraryItems.filter((/** @type {any} */ i) => i.date).map((/** @type {any} */ i) => i.date)).size);
-  const decisions = $derived(itineraryItems.filter((/** @type {any} */ i) => !i.date).length);
+  // Open decisions = the undated "To decide" QUESTIONS ("Where to camp?"), not
+  // their individual options — one question is one open decision, however many
+  // options sit under it. (Legacy ungrouped decisions have no kind='question'
+  // wrapper; count them too so a pre-grouping trip still reads right.)
+  const decisions = $derived(
+    itineraryItems.filter((/** @type {any} */ i) => !i.date && (i.kind === 'question' || (i.kind === 'flexible' && !i.group))).length
+  );
   const statuses = $derived.by(() => {
     const onHold = bookings.filter((/** @type {any} */ b) => b.status === 'planning').length;
     const pins = (data.mapPins ?? []).length;
