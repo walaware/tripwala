@@ -26,9 +26,12 @@
 
 <button type="button" class="flex w-full items-center gap-3 text-left" onclick={onOpen}>
   {#if shown.length}
-    <span class="flex flex-none items-center">
+    <!-- isolate: keep the per-avatar z-index (which stacks the pile left-over-right)
+         in a LOCAL stacking context, so the first face can't rise above the sticky
+         header (both were competing at z-index 5 on the root). -->
+    <span class="flex flex-none items-center isolate">
       {#each shown as p, i (p.id)}
-        <span class="-ml-2 first:ml-0" style="z-index: {shown.length - i}">
+        <span class="relative -ml-2 first:ml-0" style="z-index: {shown.length - i}">
           <StatusAvatar
             name={p.display_name}
             src={p.avatar}
