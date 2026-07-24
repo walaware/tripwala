@@ -622,13 +622,13 @@
         <Button variant="ghost" size="sm" onclick={() => (qEditId = '')} disabled={busy}>Cancel</Button>
       </div>
     {:else}
-      <div class="group mb-2 flex items-center gap-2 px-0.5">
-        <span class="min-w-0 flex-1 truncate font-display text-[14px] font-bold text-berry-600">🗳️ {q.label}</span>
+      <div class="group mb-2 flex items-start gap-2 px-0.5">
+        <span class="min-w-0 flex-1 break-words font-display text-[14px] font-bold leading-snug text-berry-600">🗳️ {q.label}</span>
         {#if opts.length}
-          <span class="flex-none font-body text-[11.5px] font-extrabold text-cocoa-400">{opts.length} option{opts.length === 1 ? '' : 's'}</span>
+          <span class="mt-0.5 flex-none font-body text-[11.5px] font-extrabold text-cocoa-400">{opts.length} option{opts.length === 1 ? '' : 's'}</span>
         {/if}
         {#if canManage(q)}
-          <span class="flex flex-none items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+          <span class="flex flex-none items-center gap-0.5 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
             <button type="button" aria-label="Rename question" onclick={() => openQuestionEdit(q)} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-coral-600">Edit</button>
             <button type="button" aria-label="Remove question" onclick={() => removeQuestion(q)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">✕</button>
           </span>
@@ -725,67 +725,46 @@
     </div>
   {:else}
     {@const img = cardImage(it)}
-    <div class="group flex flex-col gap-1 rounded-lg border-2 border-sand-200 bg-white px-2.5 py-2">
-      <div class="flex items-center gap-2">
-      {#if it.time}
-        <span class="flex-none rounded-full px-2 py-0.5 font-body text-[12px] font-extrabold {it.kind === 'fixed' ? 'bg-sand-300 text-cocoa-700' : 'bg-sand-200 text-cocoa-600'}">{it.time}</span>
-      {:else if it.kind === 'fixed'}
-        <span class="flex-none text-[13px]" title="Fixed entry" aria-hidden="true">📌</span>
-      {/if}
+    <div class="group flex min-w-0 flex-col gap-1.5 rounded-lg border-2 border-sand-200 bg-white px-2.5 py-2">
+      <!-- Title row: time/fixed marker · title · upvote · creator. The title
+           WRAPS (never truncates) so long names stay readable on mobile; the
+           navigate/link/manage controls drop to the footer bar below so they
+           never squeeze the title on a narrow screen. -->
+      <div class="flex items-start gap-2">
+        {#if it.time}
+          <span class="mt-0.5 flex-none rounded-full px-2 py-0.5 font-body text-[12px] font-extrabold {it.kind === 'fixed' ? 'bg-sand-300 text-cocoa-700' : 'bg-sand-200 text-cocoa-600'}">{it.time}</span>
+        {:else if it.kind === 'fixed'}
+          <span class="mt-0.5 flex-none text-[13px]" title="Fixed entry" aria-hidden="true">📌</span>
+        {/if}
 
-      <span class="min-w-0 flex-1 truncate font-body text-[14.5px] font-extrabold text-cocoa-900">{it.label}</span>
+        <span class="min-w-0 flex-1 break-words font-body text-[14.5px] font-extrabold leading-snug text-cocoa-900">{it.label}</span>
 
-      <!-- Right cluster: navigate · upvote (flexible only) · creator avatar · hover manage. -->
-      {#if it.place}
-        <a
-          href={navUrl(it.place, mapApp)}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Navigate to {it.place}"
-          title="Navigate — {it.place}"
-          class="flex flex-none items-center gap-1 rounded-full bg-coral-100 px-2 py-1 font-body text-[12px] font-extrabold text-coral-600 transition hover:bg-coral-500 hover:text-white"
-        >
-          <span class="leading-none" aria-hidden="true">🧭</span>
-          <span class="hidden leading-none sm:inline">Navigate</span>
-        </a>
-      {/if}
+        {#if it.kind === 'flexible'}
+          <button
+            type="button"
+            onclick={() => canVote && vote(it.id)}
+            disabled={busy || !canVote}
+            aria-pressed={it.mine}
+            aria-label={it.mine ? 'Remove your upvote' : 'Upvote'}
+            class="flex flex-none items-center gap-1 rounded-full px-2.5 py-1.5 font-body text-[12.5px] font-bold transition {it.mine ? 'bg-coral-500 text-white' : 'bg-sand-100 text-cocoa-600'} {canVote ? 'hover:bg-coral-100' : ''}"
+          >
+            <span class="leading-none">▲</span>
+            <span class="font-display leading-none">{it.votes}</span>
+          </button>
+        {/if}
 
-      {#if it.kind === 'flexible'}
-        <button
-          type="button"
-          onclick={() => canVote && vote(it.id)}
-          disabled={busy || !canVote}
-          aria-pressed={it.mine}
-          aria-label="Upvote"
-          class="flex flex-none items-center gap-1 rounded-full px-2 py-1 font-body text-[12px] font-bold transition {it.mine ? 'bg-coral-500 text-white' : 'bg-sand-100 text-cocoa-600'} {canVote ? 'hover:bg-coral-100' : ''}"
-        >
-          <span class="leading-none">▲</span>
-          <span class="font-display leading-none">{it.votes}</span>
-        </button>
-      {/if}
-
-      {#if it.createdByName}
-        <Tooltip label="Added by {it.createdByName}" placement="top">
-          <span class="flex-none"><Avatar name={it.createdByName} src={it.createdByAvatar} size={22} /></span>
-        </Tooltip>
-      {/if}
-
-      {#if canManage(it)}
-        <span class="flex flex-none items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
-          <button type="button" aria-label="Edit" onclick={() => openEdit(it)} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-coral-600">Edit</button>
-          {#if ownerMode && it.kind === 'flexible' && it.group}
-            <button type="button" aria-label="Cross out this option" title="Cross out — rule this option out" onclick={() => crossOption(it.id, true)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">Cross out</button>
-          {/if}
-          <button type="button" aria-label="Remove" onclick={() => removeItem(it.id)} disabled={busy} class="rounded-full px-1.5 font-body text-[12px] font-bold text-cocoa-400 hover:text-berry-600">✕</button>
-        </span>
-      {/if}
+        {#if it.createdByName}
+          <Tooltip label="Added by {it.createdByName}" placement="top">
+            <span class="mt-0.5 flex-none"><Avatar name={it.createdByName} src={it.createdByAvatar} size={22} /></span>
+          </Tooltip>
+        {/if}
       </div>
 
       <!-- Rich media (#to-decide-cards): a photo (uploaded > unfurled preview)
            and/or a link give a decision like "where do we eat tonight" the same
            depth planning's location cards have. Only rendered when present. -->
       {#if img.src}
-        <div class="relative mt-1 h-28 w-full overflow-hidden rounded-lg">
+        <div class="relative h-28 w-full overflow-hidden rounded-lg">
           <img src={img.src} alt={it.label} class="h-full w-full object-cover" loading="lazy" />
           {#if uploadingId === it.id}
             <div class="absolute inset-0 grid place-items-center bg-cocoa-900/40 font-body text-xs font-extrabold text-white">Uploading…</div>
@@ -794,11 +773,29 @@
       {/if}
 
       {#if it.note}
-        <p class="whitespace-pre-line font-body text-[13px] font-semibold leading-snug text-cocoa-600">{it.note}</p>
+        <!-- break-words so a raw URL / long token in the note can't spill past
+             the card edge on narrow screens. -->
+        <p class="whitespace-pre-line break-words font-body text-[13px] font-semibold leading-snug text-cocoa-600">{it.note}</p>
       {/if}
 
-      {#if it.url || canManage(it)}
+      <!-- Footer action bar: navigate · link · manage. Wraps on narrow screens;
+           manage actions stay visible on touch (hover-reveal only on ≥sm, where a
+           pointer exists — otherwise they'd be unreachable on a phone). -->
+      {#if it.place || it.url || canManage(it)}
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
+          {#if it.place}
+            <a
+              href={navUrl(it.place, mapApp)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Navigate to {it.place}"
+              title="Navigate — {it.place}"
+              class="inline-flex flex-none items-center gap-1 rounded-full bg-coral-100 px-2 py-0.5 font-body text-[11.5px] font-extrabold text-coral-600 transition hover:bg-coral-500 hover:text-white"
+            >
+              <span class="leading-none" aria-hidden="true">🧭</span>
+              <span class="leading-none">Navigate</span>
+            </a>
+          {/if}
           {#if it.url}
             <!-- Compact link chip: just the site name, hard-bounded so a long URL
                  never spills into the row. Full link on hover / in the new tab. -->
@@ -814,20 +811,22 @@
             </a>
           {/if}
           {#if canManage(it)}
-            <button
-              type="button"
-              onclick={() => pickPhotoFor(it.id)}
-              disabled={busy || uploadingId === it.id}
-              class="font-body text-[12px] font-extrabold text-cocoa-400 transition hover:text-coral-600"
-            >📷 {img.isCustom ? 'Replace photo' : 'Add photo'}</button>
-            {#if img.isCustom}
+            <span class="flex flex-wrap items-center gap-x-2 gap-y-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
               <button
                 type="button"
-                onclick={() => removePhoto(it.id)}
-                disabled={busy}
-                class="font-body text-[12px] font-extrabold text-cocoa-400 transition hover:text-berry-600"
-              >Remove photo</button>
-            {/if}
+                onclick={() => pickPhotoFor(it.id)}
+                disabled={busy || uploadingId === it.id}
+                class="font-body text-[12px] font-extrabold text-cocoa-400 transition hover:text-coral-600"
+              >📷 {img.isCustom ? 'Replace photo' : 'Add photo'}</button>
+              {#if img.isCustom}
+                <button type="button" onclick={() => removePhoto(it.id)} disabled={busy} class="font-body text-[12px] font-extrabold text-cocoa-400 transition hover:text-berry-600">Remove photo</button>
+              {/if}
+              <button type="button" aria-label="Edit" onclick={() => openEdit(it)} class="font-body text-[12px] font-bold text-cocoa-400 transition hover:text-coral-600">Edit</button>
+              {#if ownerMode && it.kind === 'flexible' && it.group}
+                <button type="button" aria-label="Cross out this option" title="Cross out — rule this option out" onclick={() => crossOption(it.id, true)} disabled={busy} class="font-body text-[12px] font-bold text-cocoa-400 transition hover:text-berry-600">Cross out</button>
+              {/if}
+              <button type="button" aria-label="Remove" onclick={() => removeItem(it.id)} disabled={busy} class="font-body text-[12px] font-bold text-cocoa-400 transition hover:text-berry-600">✕</button>
+            </span>
           {/if}
         </div>
       {/if}
