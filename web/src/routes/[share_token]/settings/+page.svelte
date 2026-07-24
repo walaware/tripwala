@@ -1,7 +1,7 @@
 <script>
   import { goto, invalidateAll } from '$app/navigation';
   import { enhance } from '$app/forms';
-  import { Card, Switch } from '@walaware/design';
+  import { Card, Switch, Button } from '@walaware/design';
   import { tripAction } from '$lib/tripClient.js';
   import { useShell } from '$lib/shell.svelte.js';
   import { tripSectionNav } from '$lib/tripSections.js';
@@ -10,6 +10,9 @@
   import { heroDefaultSrc } from '$lib/heroDefaults.js';
   import SettingRow from '$lib/sections/settings/SettingRow.svelte';
   import InviteAccess from '$lib/sections/settings/InviteAccess.svelte';
+  import TripDetailsForm from '$lib/sections/settings/TripDetailsForm.svelte';
+  import PeopleRoles from '$lib/sections/settings/PeopleRoles.svelte';
+  import StageSections from '$lib/sections/settings/StageSections.svelte';
 
   /** @type {{ data: any, form?: any }} */
   let { data, form } = $props();
@@ -18,6 +21,12 @@
   const shareToken = $derived(data.shareToken);
   const ownerMode = $derived(data.isOrganizer ?? false);
   const me = $derived(data.me);
+  // People management (organizer only — loader returns [] for guests).
+  const members = $derived(data.members ?? []);
+  const pending = $derived(data.pending ?? []);
+  const invites = $derived(data.invites ?? []);
+  const currentParticipantId = $derived(data.currentParticipantId ?? null);
+  const emailEnabled = $derived(data.emailEnabled ?? false);
 
   const notifyOn = $derived(me?.notify !== false);
   // Preview shows the same resolution the trip page will use, so what you see
@@ -64,6 +73,9 @@
   const hidden = $derived(new Set(trip.hidden_sections ?? []));
 
   let busy = $state('');
+  // Brief "Saved" pulse after a trip-details edit (mirrors TripSettingsSection).
+  let savedFlash = $state(false);
+  let cloning = $state(false);
 
   /** @param {string} op @param {Record<string, unknown>} payload @param {string} [tag] */
   async function act(op, payload = {}, tag = op) {
@@ -72,9 +84,46 @@
     try {
       await tripAction(shareToken, { op, ...payload });
       await invalidateAll();
+      if (op === 'trip_update') {
+        savedFlash = true;
+        setTimeout(() => (savedFlash = false), 1500);
+      }
     } catch (_) {
       /* reconciled on next load */
     } finally {
+      busy = '';
+    }
+  }
+
+  // Trip actions (mirror TripSettingsSection so behavior matches the planning
+  // canvas). Leave/delete bounce home; both confirm first.
+  async function leave() {
+    if (busy) return;
+    if (!confirm('Leave this trip? You can re-join later from the invite link.')) return;
+    busy = 'leave';
+    try {
+      await tripAction(shareToken, { op: 'leave_trip' });
+      await goto('/');
+    } catch (_) {
+      busy = '';
+    }
+  }
+
+  /** @param {string} status */
+  async function setStage(status) {
+    if (busy || status === (trip.status || 'confirmed')) return;
+    if (status === 'idea' && !confirm('Move this trip back to your Ideas wishlist? Everything is kept — it just leaves the calendar until you promote it again.')) return;
+    await act('set_status', { status }, 'stage');
+  }
+
+  async function deleteTrip() {
+    if (busy) return;
+    if (!confirm(`Delete "${trip.name}" permanently? This removes the itinerary, gear, expenses, photo links and everyone's data for this trip. This cannot be undone.`)) return;
+    busy = 'delete';
+    try {
+      await tripAction(shareToken, { op: 'delete_trip' });
+      await goto('/');
+    } catch (_) {
       busy = '';
     }
   }
@@ -92,6 +141,14 @@
   <a href="/{shareToken}" class="font-body text-sm font-extrabold text-coral-600 hover:underline">← Back to trip</a>
   <h1 class="mt-2 font-display text-[27px] font-bold tracking-tight text-text-strong">⚙️ Trip settings</h1>
   <p class="mt-1 font-body text-[14px] font-bold text-text-muted">Everything about {trip.name}, in one place.</p>
+
+  <!-- ✏️ Trip details — name, dates, location, description, safety (organizer). -->
+  {#if ownerMode}
+    <div class={groupLabel}>✏️ Trip details</div>
+    <Card>
+      <TripDetailsForm {shareToken} {trip} {busy} {savedFlash} {act} />
+    </Card>
+  {/if}
 
   <!-- 🧩 Sections — what this trip shows -->
   <div class={groupLabel}>🧩 Sections — what this trip shows</div>
@@ -175,15 +232,62 @@
     </SettingRow>
   </Card>
 
-  <!-- 🔒 Friends'-calendar privacy — the only access control that stays here;
-       join/share policy live in the invite modal, roles and outstanding invites
-       on the People page above, and trip actions (edit/clone/leave/…) in the
-       trip-header ⋯ menu. -->
+  <!-- 🙌 People & roles — organizers manage members, pending requests, invites. -->
+  {#if ownerMode}
+    <div class={groupLabel}>🙌 People & roles</div>
+    <Card>
+      <PeopleRoles {members} {pending} {invites} {currentParticipantId} {emailEnabled} {busy} {act} />
+    </Card>
+  {/if}
+
+  <!-- 🔒 Friends'-calendar privacy — who sees this trip on their shared calendar. -->
   {#if ownerMode}
     <div class={groupLabel}>🔒 Friends' calendars</div>
     <Card>
       <div class="mb-1.5 font-body text-[13px] font-extrabold text-text-strong">What friends see on their calendar</div>
       <InviteAccess {ownerMode} visibility={trip.visibility} {act} />
+    </Card>
+  {/if}
+
+  <!-- 📋 Trip actions — any member can clone or leave (they moved here when the
+       header ⋯ menu was retired). -->
+  <div class={groupLabel}>📋 Trip actions</div>
+  <Card>
+    {#if form?.cloneError}
+      <p class="mb-2 font-body text-[12.5px] font-extrabold text-berry-600">{form.cloneError}</p>
+    {/if}
+    <form
+      method="POST"
+      action="?/clone"
+      use:enhance={() => {
+        cloning = true;
+        return async ({ update }) => {
+          await update();
+          cloning = false;
+        };
+      }}
+    >
+      <SettingRow icon="📋" title="Duplicate this trip" desc="Copy the gear, packing & meals into a new trip you own" first>
+        {#snippet control()}
+          <Button type="submit" variant="soft" size="sm" disabled={cloning}>{cloning ? 'Copying…' : 'Make a copy'}</Button>
+        {/snippet}
+      </SettingRow>
+    </form>
+
+    <SettingRow icon="🚪" title="Leave this trip" desc="You'll stop getting updates — re-join later from the invite link">
+      {#snippet control()}
+        <Button variant="ghost" size="sm" disabled={busy === 'leave'} onclick={leave}>Leave</Button>
+      {/snippet}
+    </SettingRow>
+  </Card>
+
+  <!-- 🗂️ Stage & danger zone — move the trip through its lifecycle, or delete it
+       (organizer). Hidden-section restore is handled by the Sections toggles
+       above, so this only carries stage + delete (hiddenList empty). -->
+  {#if ownerMode}
+    <div class={groupLabel}>🗂️ Stage</div>
+    <Card>
+      <StageSections {trip} hiddenList={[]} {busy} {act} onSetStage={setStage} onDelete={deleteTrip} />
     </Card>
   {/if}
 </div>
