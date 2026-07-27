@@ -747,6 +747,27 @@ export async function POST({ params, request, locals, url }) {
         break;
       }
 
+      // Pick the final answer for a decision — organizer only (#pick-answer).
+      // Settles (deprecates) the question: it drops out of the open "To decide"
+      // count and shows just its chosen answer. Pass an empty optionId to reopen
+      // (clear the pick). The option must be a live (not crossed) option of that
+      // exact question.
+      case 'itin_question_resolve': {
+        if (!isOrganizer) throw error(403, 'Only organizers can settle a decision');
+        const q = await inTrip('itinerary_items', String(body.questionId ?? ''));
+        if ((q.kind || '') !== 'question') throw error(400, "That isn't a decision");
+        const optionId = String(body.optionId ?? '').trim();
+        if (!optionId) {
+          await pb.collection('itinerary_items').update(q.id, { picked: '' });
+          break;
+        }
+        const opt = await inTrip('itinerary_items', optionId);
+        if (opt.group !== q.id) throw error(400, 'That option belongs to another decision');
+        if (opt.crossed) throw error(400, 'Restore this option before picking it as the answer');
+        await pb.collection('itinerary_items').update(q.id, { picked: opt.id });
+        break;
+      }
+
       // Toggle my upvote on a flexible item/option (any member). Only flexible
       // rows are votable — fixed entries and question groups aren't.
       case 'itin_vote': {

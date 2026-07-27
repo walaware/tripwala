@@ -64,6 +64,10 @@ export function shapeItinerary(items, votes, nameById, avatarById, myParticipant
     // Organizer ruled this option out (#cross-option): kept for reference but
     // struck through, shrunk, and sorted to the bottom of its question.
     crossed: !!it.crossed,
+    // The option this question was settled on (#pick-answer): set only on a
+    // question row → the id of its chosen answer. Empty = still open. Deprecates
+    // the question (moves it to "Decided", drops it from the open count).
+    picked: it.picked || null,
     sortOrder: it.sort_order ?? 0,
     createdBy: it.created_by || null,
     createdByName: it.created_by ? (nameById[it.created_by] ?? 'Someone') : null,

@@ -9,7 +9,7 @@
   import { confirmAction } from '$lib/confirm.svelte.js';
 
   /**
-   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible'|'question', group: string|null, crossed: boolean, sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
+   * @typedef {{ id: string, date: string, time: string, label: string, place: string, note: string, url: string, image: string, previewImage: string, previewTitle: string, previewDescription: string, kind: 'fixed'|'flexible'|'question', group: string|null, crossed: boolean, picked: string|null, sortOrder: number, createdBy: string|null, createdByName: string|null, createdByAvatar: string, votes: number, mine: boolean }} ItinItem
    */
 
   /**
@@ -93,6 +93,22 @@
   // Defensive: any undated flexible item without a question (shouldn't happen post
   // migration, but never silently drop one) renders as a loose card.
   const orphanOptions = $derived(undated.filter((it) => it.kind !== 'question' && !it.group));
+
+  // #pick-answer: an organizer settles a question by picking one option as THE
+  // answer (`picked` → that option's id). A settled question is deprecated — it
+  // leaves the open "To decide" list for the compact "Decided" strip. If the
+  // chosen option was since deleted, PocketBase clears `picked`, so it reopens
+  // on its own (pickedOptionOf → null).
+  const itemById = $derived.by(() => {
+    /** @type {Record<string, ItinItem>} */
+    const m = {};
+    for (const it of itineraryItems) m[it.id] = it;
+    return m;
+  });
+  /** The chosen answer of a question, or null if open / dangling. @param {ItinItem} q */
+  const pickedOptionOf = (q) => (q.picked ? (itemById[q.picked] ?? null) : null);
+  const openQuestions = $derived(questions.filter((q) => !pickedOptionOf(q)));
+  const decidedQuestions = $derived(questions.filter((q) => pickedOptionOf(q)));
   /** @param {string} key YYYY-MM-DD */
   const keyLabel = (key) => `${fmtWeekday(`${key}T00:00:00.000Z`)} ${fmtMonthDay(`${key}T00:00:00.000Z`)}`;
   const groups = $derived.by(() => {
@@ -329,6 +345,10 @@
   const removeItem = (itemId) => run({ op: 'itin_item_remove', itemId });
   /** Organizer rules an option out / back in. @param {string} itemId @param {boolean} crossed */
   const crossOption = (itemId, crossed) => run({ op: 'itin_item_cross', itemId, crossed });
+  /** Organizer settles a decision on one option (#pick-answer). @param {string} questionId @param {string} optionId */
+  const pickAnswer = (questionId, optionId) => run({ op: 'itin_question_resolve', questionId, optionId });
+  /** Organizer reopens a settled decision. @param {string} questionId */
+  const reopenQuestion = (questionId) => run({ op: 'itin_question_resolve', questionId, optionId: '' });
 
   // ---- Photo upload (creator or organizer; same rule as edit/remove) ----
   /** @param {string} id */
@@ -425,14 +445,14 @@
   <!-- Open decisions surface at the TOP: each is a QUESTION ("Where to camp?")
        with options the crew adds and upvotes (primary-soft block), not buried at
        the bottom of the plan. -->
-  {#if questions.length || orphanOptions.length || canVote}
+  {#if openQuestions.length || orphanOptions.length || canVote}
     <div class="mb-4 rounded-xl p-3" style="background: var(--color-primary-soft)">
       <div class="mb-2 flex items-center gap-2 px-0.5">
         <span class="font-display text-[14px] font-bold" style="color: var(--color-primary-press, var(--color-coral-700))">🤔 To decide</span>
         <span class="h-px flex-1" style="background: color-mix(in srgb, var(--color-primary-press, #b45309) 20%, transparent)"></span>
       </div>
       <div class="flex flex-col gap-3">
-        {#each questions as q (q.id)}
+        {#each openQuestions as q (q.id)}
           {@render questionBlock(q)}
         {/each}
 
@@ -472,6 +492,23 @@
             >＋ Add a question</button>
           {/if}
         {/if}
+      </div>
+    </div>
+  {/if}
+
+  <!-- Settled decisions (#pick-answer): a compact strip that just shows each
+       question's chosen answer, so the crew sees what was decided without the
+       open voting UI. Organizers can reopen one to put it back to a vote. -->
+  {#if decidedQuestions.length}
+    <div class="mb-4 rounded-xl p-3" style="background: var(--color-leaf-100)">
+      <div class="mb-2 flex items-center gap-2 px-0.5">
+        <span class="font-display text-[14px] font-bold text-leaf-700">✅ Decided</span>
+        <span class="h-px flex-1 bg-leaf-200"></span>
+      </div>
+      <div class="flex flex-col gap-2">
+        {#each decidedQuestions as q (q.id)}
+          {@render decidedBlock(q)}
+        {/each}
       </div>
     </div>
   {/if}
@@ -661,6 +698,60 @@
   </div>
 {/snippet}
 
+{#snippet decidedBlock(/** @type {ItinItem} */ q)}
+  {@const ans = pickedOptionOf(q)}
+  {#if ans}
+    <div class="group flex items-start gap-2 rounded-xl border-2 border-leaf-200 bg-white/70 p-2.5">
+      <span class="mt-0.5 flex-none text-[14px]" aria-hidden="true">🏆</span>
+      <div class="min-w-0 flex-1">
+        <p class="break-words font-body text-[11.5px] font-extrabold uppercase tracking-wide text-leaf-700/80">{q.label}</p>
+        <p class="mt-0.5 break-words font-display text-[14.5px] font-bold leading-snug text-cocoa-900">{ans.label}</p>
+        {#if ans.note}
+          <p class="mt-0.5 whitespace-pre-line break-words font-body text-[13px] font-semibold leading-snug text-cocoa-600">{ans.note}</p>
+        {/if}
+        {#if ans.place || ans.url}
+          <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {#if ans.place}
+              <a
+                href={navUrl(ans.place, mapApp)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Navigate to {ans.place}"
+                title="Navigate — {ans.place}"
+                class="inline-flex flex-none items-center gap-1 rounded-full bg-coral-100 px-2 py-0.5 font-body text-[11.5px] font-extrabold text-coral-600 transition hover:bg-coral-500 hover:text-white"
+              >
+                <span class="leading-none" aria-hidden="true">🧭</span>
+                <span class="leading-none">Navigate</span>
+              </a>
+            {/if}
+            {#if ans.url}
+              <a
+                href={ans.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={ans.url}
+                class="inline-flex max-w-[190px] items-center gap-1 rounded-full bg-sand-100 px-2 py-0.5 font-body text-[11.5px] font-extrabold text-coral-600 transition hover:bg-coral-100"
+              >
+                <span class="flex-none leading-none" aria-hidden="true">🔗</span>
+                <span class="truncate">{cardDomain(ans.url) || 'link'}</span>
+              </a>
+            {/if}
+          </div>
+        {/if}
+      </div>
+      {#if ownerMode}
+        <button
+          type="button"
+          onclick={() => reopenQuestion(q.id)}
+          disabled={busy}
+          title="Reopen — put this decision back to a vote"
+          class="flex-none rounded-full px-2 py-1 font-body text-[12px] font-extrabold text-cocoa-400 opacity-100 transition hover:text-coral-600 sm:opacity-0 sm:group-hover:opacity-100"
+        >Reopen</button>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
+
 {#snippet itemRow(/** @type {ItinItem} */ it)}
   {#if editId === it.id}
     <div class="flex flex-col gap-2 rounded-lg border-2 border-coral-200 bg-sand-100 p-2.5">
@@ -824,6 +915,7 @@
               {/if}
               <button type="button" aria-label="Edit" onclick={() => openEdit(it)} class="font-body text-[12px] font-bold text-cocoa-400 transition hover:text-coral-600">Edit</button>
               {#if ownerMode && it.kind === 'flexible' && it.group}
+                <button type="button" aria-label="Pick this option as the answer" title="Pick as answer — settle this decision" onclick={() => pickAnswer(it.group ?? '', it.id)} disabled={busy} class="font-body text-[12px] font-extrabold text-leaf-600 transition hover:text-leaf-700">✓ Pick as answer</button>
                 <button type="button" aria-label="Cross out this option" title="Cross out — rule this option out" onclick={() => crossOption(it.id, true)} disabled={busy} class="font-body text-[12px] font-bold text-cocoa-400 transition hover:text-berry-600">Cross out</button>
               {/if}
               <button type="button" aria-label="Remove" onclick={() => removeItem(it.id)} disabled={busy} class="font-body text-[12px] font-bold text-cocoa-400 transition hover:text-berry-600">✕</button>
