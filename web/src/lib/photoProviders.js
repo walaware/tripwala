@@ -48,6 +48,22 @@ export function photoAlbum(url) {
 }
 
 /**
+ * Extract the Immich album UUID from a shared-album URL, or null. Only
+ * self-hosted Immich `…/albums/<uuid>` web links carry a usable id (Google /
+ * iCloud don't, and Immich `/share/<key>` links hide it). Pure — used to turn a
+ * manually pasted album link into an id we can query the Immich API with.
+ * @param {string} url
+ * @returns {string | null}
+ */
+export function immichAlbumId(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return null;
+  if (photoAlbum(raw)?.provider !== 'immich') return null;
+  const m = raw.match(/\/albums\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  return m ? m[1] : null;
+}
+
+/**
  * Validate a pasted album share link. Requires a real http(s) URL (which also
  * rejects `javascript:`/`data:` and other schemes before we ever render it as
  * an iframe src or href). Returns the classified album, or null if invalid.

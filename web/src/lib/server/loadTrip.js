@@ -9,6 +9,8 @@ import { participantName } from '../displayName.js';
 import { shapeItinerary } from './itinerary.js';
 import { shapeCities } from './cities.js';
 import { shapeBookings } from './bookings.js';
+import { fetchAlbumPhotos } from './immich.js';
+import { isTripPast } from '../tripStatus.js';
 
 /**
  * Load a trip and all of its related sections by share token.
@@ -125,6 +127,16 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
   const cities = shapeCities(cityRows);
   const bookings = shapeBookings(bookingRows);
 
+  // Post-trip photo wall: only finished trips (past or completed) with a linked
+  // Immich album pull real thumbnails — no point paying the album fetch on a
+  // live trip. Best-effort; an empty list just falls back to the album embed.
+  // Each id becomes a same-origin proxy URL (the Immich key stays server-side).
+  const albumPhotos = isTripPast(/** @type {any} */ (trip)) ? await fetchAlbumPhotos(/** @type {any} */ (trip)) : [];
+  const photos = albumPhotos.map((a) => ({
+    id: a.id,
+    thumb: `/${trip.share_token}/photo/${a.id}`
+  }));
+
   // The picked location idea (if any) carries its image + link preview into the
   // confirmed trip, for the expanded location card. Custom image wins over the
   // unfurled og:image, same as the planning cards.
@@ -218,6 +230,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
     itineraryItems,
     cities,
     bookings,
+    photos,
     mapPins: mapPinRows.map((p) => ({
       id: p.id,
       label: p.label,

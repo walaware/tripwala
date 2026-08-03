@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { tripAction } from '$lib/tripClient.js';
   import { fmtDateRange, tripEmoji } from '$lib/format.js';
+  import { isTripPast } from '$lib/tripStatus.js';
   import { useShell } from '$lib/shell.svelte.js';
 
   // Full section components — reused verbatim as the focused ("spoke") views.
@@ -17,6 +18,7 @@
   import PhotoSection from '$lib/sections/PhotoSection.svelte';
   import SafetySection from '$lib/sections/SafetySection.svelte';
   import WrappedSection from '$lib/sections/WrappedSection.svelte';
+  import PostTripSection from '$lib/sections/PostTripSection.svelte';
 
   // Dashboard chrome + compact rail summaries.
   import TripCover from '$lib/sections/TripCover.svelte';
@@ -52,16 +54,7 @@
   const going = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'going').length);
   const maybe = $derived(participants.filter((/** @type {any} */ p) => p.rsvp_status === 'maybe').length);
 
-  const isPast = $derived.by(() => {
-    if (trip.status === 'completed') return true;
-    const end = trip.end_date || trip.start_date;
-    if (!end) return false;
-    const e = new Date(end);
-    if (Number.isNaN(e.getTime())) return false;
-    const n = new Date();
-    return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) >
-      Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
-  });
+  const isPast = $derived(isTripPast(trip));
 
   const dietaryNotes = $derived(
     participants
@@ -320,6 +313,7 @@
 
   <div class="trip-stack">
     {#if isPast}
+      <PostTripSection {trip} {participants} photos={data.photos ?? []} />
       <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} />
     {:else}
       <StatStrip {trip} {participants} {itineraryItems} onDecide={goDecide} />
@@ -342,6 +336,7 @@
 
   <div class="trip-stack">
     {#if isPast}
+      <PostTripSection {trip} {participants} photos={data.photos ?? []} />
       <section id="wrapped" class="anchor">
         <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} />
       </section>

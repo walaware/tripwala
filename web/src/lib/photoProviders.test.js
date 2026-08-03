@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { photoAlbum, parseAlbumLink } from './photoProviders.js';
+import { photoAlbum, parseAlbumLink, immichAlbumId } from './photoProviders.js';
 
 test('photoAlbum: Google Photos links out, never framed', () => {
   for (const u of [
@@ -45,4 +45,20 @@ test('parseAlbumLink: rejects non-URL and dangerous schemes', () => {
   assert.equal(parseAlbumLink('javascript:alert(1)'), null);
   assert.equal(parseAlbumLink('data:text/html,<b>x</b>'), null);
   assert.equal(parseAlbumLink(''), null);
+});
+
+test('immichAlbumId: pulls the UUID from an Immich /albums/<uuid> link', () => {
+  const uuid = 'c1ad4453-8dc4-4697-847c-9990aec7a96c';
+  assert.equal(immichAlbumId(`https://photos.enzoiwith.us/albums/${uuid}`), uuid);
+  // extra path segments / trailing slash don't matter
+  assert.equal(immichAlbumId(`https://photos.enzoiwith.us/albums/${uuid}/photos`), uuid);
+});
+
+test('immichAlbumId: no id for share-key links, other providers, or junk', () => {
+  // Immich /share/<key> links deliberately hide the album id
+  assert.equal(immichAlbumId('https://photos.enzoiwith.us/share/abc123'), null);
+  assert.equal(immichAlbumId('https://photos.google.com/share/AF1Qip123'), null);
+  assert.equal(immichAlbumId('https://share.icloud.com/photos/abc'), null);
+  assert.equal(immichAlbumId(''), null);
+  assert.equal(immichAlbumId('not a url'), null);
 });
