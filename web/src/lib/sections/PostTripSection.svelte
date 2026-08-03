@@ -40,7 +40,8 @@
 </script>
 
 {#if wallPhotos.length}
-  <PhotoWall title={trip.name} {subtitle} {albumUrl} photos={wallPhotos} />
+  <!-- No title: the trip name already headlines the cover-hero right above this. -->
+  <PhotoWall {subtitle} {albumUrl} photos={wallPhotos} />
 {:else if albumUrl}
   <PhotoSection url={albumUrl} />
 {/if}

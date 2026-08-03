@@ -155,11 +155,17 @@
     pointer-events: none;
   }
   .cover[data-cover='art'] .cover-scrim {
+    /* Many closely-spaced stops on an ease-like curve so the artwork dissolves
+       into the app background instead of banding partway down. */
     background: linear-gradient(
       to bottom,
       transparent 0%,
-      color-mix(in srgb, var(--color-bg-app) 30%, transparent) 42%,
-      color-mix(in srgb, var(--color-bg-app) 78%, transparent) 70%,
+      color-mix(in srgb, var(--color-bg-app) 8%, transparent) 30%,
+      color-mix(in srgb, var(--color-bg-app) 22%, transparent) 46%,
+      color-mix(in srgb, var(--color-bg-app) 44%, transparent) 60%,
+      color-mix(in srgb, var(--color-bg-app) 68%, transparent) 73%,
+      color-mix(in srgb, var(--color-bg-app) 86%, transparent) 85%,
+      color-mix(in srgb, var(--color-bg-app) 96%, transparent) 93%,
       var(--color-bg-app) 100%
     );
   }
@@ -174,6 +180,25 @@
   }
   .cover.past .cover-img {
     filter: saturate(0.55);
+  }
+
+  /* ART covers dissolve into the page on every edge — no floating "card border".
+     The base sits on the app background, and the artwork feathers out at the
+     top/left/right so it never meets a hard rounded edge; the bottom is left to
+     the scrim's fade above. (PHOTO covers keep their framed look — a real dark
+     scrim + light text wouldn't survive melting into the light page.) */
+  .cover[data-cover='art'] {
+    background: var(--color-bg-app);
+  }
+  .cover[data-cover='art'] .cover-img {
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0, #000 8%, #000 92%, transparent 100%),
+      linear-gradient(to bottom, transparent 0, #000 14%, #000 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent 0, #000 8%, #000 92%, transparent 100%),
+      linear-gradient(to bottom, transparent 0, #000 14%, #000 100%);
+    mask-composite: intersect;
   }
 
   .cover-add {
