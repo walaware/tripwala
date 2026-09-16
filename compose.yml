@@ -63,6 +63,10 @@ services:
       - "SMTP_USER=${SMTP_USER:-}"
       - "SMTP_PASS=${SMTP_PASS:-}"
       - "SMTP_FROM=${SMTP_FROM:-}"
+      # Optional moneywala connection for benefit-aware stays (empty = the
+      # "Card benefits" panel is hidden). Server-side only — see .env.example.
+      - "MONEYWALA_API_URL=${MONEYWALA_API_URL:-}"
+      - "MONEYWALA_API_TOKEN=${MONEYWALA_API_TOKEN:-}"
     depends_on:
       pocketbase:
         condition: service_healthy

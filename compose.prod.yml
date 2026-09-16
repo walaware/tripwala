@@ -55,6 +55,12 @@ services:
       # Optional Immich integration for shared trip albums.
       - "IMMICH_URL=${IMMICH_URL:-}"
       - "IMMICH_API_KEY=${IMMICH_API_KEY:-}"
+      # Optional moneywala connection for benefit-aware stays (empty = the
+      # "Card benefits" panel is hidden). Tailnet URL + scoped service token,
+      # server-side only — see .env.example. NOTE: the web container must be
+      # able to resolve/reach the tailnet URL (host tailscaled + MagicDNS).
+      - "MONEYWALA_API_URL=${MONEYWALA_API_URL:-}"
+      - "MONEYWALA_API_TOKEN=${MONEYWALA_API_TOKEN:-}"
     depends_on:
       pocketbase:
         condition: service_healthy

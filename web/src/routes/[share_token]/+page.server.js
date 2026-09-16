@@ -4,6 +4,7 @@ import { loadTripByShareToken } from '$lib/server/loadTrip.js';
 import { getMembership, joinTrip, listOrphans, listPending, listInvites, claimParticipant, findInvite, inviteTokenValid } from '$lib/server/membership.js';
 import { isMailConfigured } from '$lib/server/mailer.js';
 import { immichConfigured } from '$lib/server/immich.js';
+import { moneywalaConfigured } from '$lib/server/moneywala.js';
 import { tripTeaser } from '$lib/server/teaser.js';
 import { tripOg, crawlerOg } from '$lib/server/og.js';
 import { isCrawler } from '$lib/server/crawler.js';
@@ -177,6 +178,9 @@ export async function load({ params, locals, url, request }) {
     invitedCount,
     emailEnabled: isMailConfigured(),
     immichEnabled: await immichConfigured(),
+    // Benefit-aware stays (moneywala): flag only — the browser never sees the
+    // moneywala connection itself, just whether the panel is worth offering.
+    benefitsEnabled: moneywalaConfigured(),
     og
   };
 }

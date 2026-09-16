@@ -3,6 +3,7 @@
   import { tripAction } from '$lib/tripClient.js';
   import { Card, Button, EmptyState } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
+  import BenefitsCheck from '$lib/sections/BenefitsCheck.svelte';
   import { fmtDateRange } from '$lib/format.js';
   import { bookingTypeMeta, statusMeta, refundMeta, fmtMoney } from '$lib/bookings.js';
 
@@ -16,14 +17,15 @@
    *   bookings: Booking[],
    *   currentParticipantId: string | null,
    *   ownerMode?: boolean,
+   *   benefitsEnabled?: boolean,
    *   onHide?: (() => void) | null,
    *   onSettings?: (() => void) | null,
    *   collapsed?: boolean,
    *   onToggle?: (() => void) | null
    * }}
    */
-  let { shareToken, bookings, currentParticipantId, ownerMode = false, onHide = null,
-    onSettings = null, collapsed = false, onToggle = null } = $props();
+  let { shareToken, bookings, currentParticipantId, ownerMode = false, benefitsEnabled = false,
+    onHide = null, onSettings = null, collapsed = false, onToggle = null } = $props();
 
   const canManage = (/** @type {Booking} */ b) => ownerMode || (!!currentParticipantId && b.addedBy === currentParticipantId);
   const total = $derived(bookings.length);
@@ -42,6 +44,10 @@
       busy = false;
     }
   }
+
+  // Which stay's benefits panel is open ('' = none). One at a time — the
+  // panel fetches the household's cards from moneywala when it opens.
+  let benefitsFor = $state('');
 
   // One add/edit form open at a time. editId '' = closed; 'new' = adding.
   let editId = $state('');
@@ -149,10 +155,21 @@
       {/if}
       {#if b.confirmation}<span>#{b.confirmation}</span>{/if}
       {#if b.link}<a href={b.link} target="_blank" rel="noopener noreferrer" class="text-coral-600 hover:underline">open ↗</a>{/if}
+      {#if benefitsEnabled && b.type === 'stay'}
+        <button
+          type="button"
+          onclick={() => (benefitsFor = benefitsFor === b.id ? '' : b.id)}
+          class="font-extrabold text-coral-600 hover:underline"
+        >💳 {benefitsFor === b.id ? 'Hide benefits' : 'Card benefits'}</button>
+      {/if}
     </div>
 
     {#if b.notes}
       <p class="whitespace-pre-line font-body text-[12.5px] font-semibold leading-snug text-cocoa-600">{b.notes}</p>
+    {/if}
+
+    {#if benefitsEnabled && b.type === 'stay' && benefitsFor === b.id}
+      <div class="mt-1"><BenefitsCheck {shareToken} booking={b} /></div>
     {/if}
   </div>
 {/snippet}
