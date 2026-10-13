@@ -5,7 +5,8 @@
   // /[share_token]/page/[id] route (CSP sandbox, opaque origin; see
   // $lib/server/pages.js). Add = paste the HTML (or pick an .html file, read
   // client-side into the same textarea).
-  import { invalidateAll } from '$app/navigation';
+  import { invalidateAll, goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { tripAction } from '$lib/tripClient.js';
   import { Card, Button, EmptyState } from '@walaware/design';
   import SectionHeader from '$lib/ui/SectionHeader.svelte';
@@ -89,9 +90,15 @@
     input.value = '';
   }
 
-  // Fullscreen viewer: the open page's id ('' = closed).
-  let viewing = $state('');
+  // Fullscreen viewer, URL-driven (?page=<id>) so the PagesStrip chips and
+  // shared links deep-link straight into a page, and Back closes it.
+  const viewing = $derived(page.url.searchParams.get('page') ?? '');
   const viewingPage = $derived(pages.find((p) => p.id === viewing) ?? null);
+  /** @param {string} id '' closes */
+  function setViewing(id) {
+    const q = id ? `?focus=pages&page=${encodeURIComponent(id)}` : '?focus=pages';
+    goto(`${page.url.pathname}${q}`, { noScroll: true, keepFocus: true });
+  }
 
   const inputClass =
     'w-full rounded-md border-2 border-sand-300 bg-white px-3 py-1.5 font-body text-[14px] font-bold text-cocoa-900 outline-none focus:border-coral-400';
@@ -112,7 +119,7 @@
     {#each pages as p (p.id)}
       <div class="group flex items-center gap-2 rounded-lg border-2 border-sand-200 bg-white px-3 py-2.5">
         <span class="flex-none text-[15px]" aria-hidden="true">📄</span>
-        <button type="button" class="min-w-0 flex-1 truncate text-left font-body text-[14.5px] font-extrabold text-cocoa-900 hover:text-coral-600" onclick={() => (viewing = p.id)}>
+        <button type="button" class="min-w-0 flex-1 truncate text-left font-body text-[14.5px] font-extrabold text-cocoa-900 hover:text-coral-600" onclick={() => setViewing(p.id)}>
           {p.title}
         </button>
         <a href={pageUrl(p.id)} target="_blank" rel="noopener noreferrer" class="flex-none font-body text-[12px] font-bold text-cocoa-400 hover:text-coral-600">new tab ↗</a>
@@ -184,7 +191,7 @@
         <span class="text-[15px]" aria-hidden="true">📄</span>
         <span class="min-w-0 flex-1 truncate font-body text-[14.5px] font-extrabold text-cocoa-900">{viewingPage.title}</span>
         <a href={pageUrl(viewingPage.id)} target="_blank" rel="noopener noreferrer" class="flex-none font-body text-[12.5px] font-bold text-cocoa-400 hover:text-coral-600">new tab ↗</a>
-        <button type="button" aria-label="Close" onclick={() => (viewing = '')} class="flex-none px-2 font-body text-[16px] font-extrabold text-cocoa-400 hover:text-cocoa-900">✕</button>
+        <button type="button" aria-label="Close" onclick={() => setViewing('')} class="flex-none px-2 font-body text-[16px] font-extrabold text-cocoa-400 hover:text-cocoa-900">✕</button>
       </div>
       <iframe
         src={pageUrl(viewingPage.id)}

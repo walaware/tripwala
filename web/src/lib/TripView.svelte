@@ -35,6 +35,7 @@
   import ExpensesSummary from '$lib/sections/summary/ExpensesSummary.svelte';
   import PagesSummary from '$lib/sections/summary/PagesSummary.svelte';
   import PagesSection from '$lib/sections/PagesSection.svelte';
+  import PagesStrip from '$lib/sections/PagesStrip.svelte';
 
   /**
    * @type {{
@@ -182,6 +183,10 @@
   }
   function clearFocus() {
     goto(page.url.pathname, { noScroll: true, keepFocus: true });
+  }
+  /** Deep-link straight into a trip page's sandboxed viewer. @param {string} id */
+  function openPage(id) {
+    goto(`${page.url.pathname}?focus=pages&page=${encodeURIComponent(id)}`, { noScroll: true, keepFocus: true });
   }
   const settingsHref = $derived(`${page.url.pathname.replace(/\/$/, '')}/settings`);
   // Invite links for the "Who's in" invite modal.
@@ -332,6 +337,9 @@
       <SafetySection info={trip.emergency_info} />
     {/if}
     {#if !isPast}<OverviewBrief {trip} />{/if}
+    {#if !isHidden('pages') && (data.pages ?? []).length}
+      <PagesStrip pages={data.pages ?? []} onOpen={openPage} />
+    {/if}
     <MobileHub rows={mobileRows} onOpen={setFocus} onSettings={goSettings} />
     {#if !currentParticipantId}
       <p class="px-1 text-center font-body text-xs font-bold text-cocoa-500">
@@ -367,6 +375,10 @@
            city-grouped version). -->
       <div class="dash-main">
         {#if !isPast}<div class="mb-[var(--stack-gap,14px)]"><OverviewBrief {trip} /></div>{/if}
+        {#if !isHidden('pages') && (data.pages ?? []).length}
+          <!-- Embedded pages up top — a trip's fun one-off page shouldn't hide in the rail. -->
+          <div class="mb-[var(--stack-gap,14px)]"><PagesStrip pages={data.pages ?? []} onOpen={openPage} /></div>
+        {/if}
         {#if !isHidden('itinerary')}
           <section id="itinerary" class="anchor">
             <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} onSettings={goSettings} />
