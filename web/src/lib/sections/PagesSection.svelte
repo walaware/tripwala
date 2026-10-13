@@ -90,14 +90,14 @@
     input.value = '';
   }
 
-  // Fullscreen viewer, URL-driven (?page=<id>) so the PagesStrip chips and
-  // shared links deep-link straight into a page, and Back closes it.
-  const viewing = $derived(page.url.searchParams.get('page') ?? '');
-  const viewingPage = $derived(pages.find((p) => p.id === viewing) ?? null);
-  /** @param {string} id '' closes */
-  function setViewing(id) {
-    const q = id ? `?focus=pages&page=${encodeURIComponent(id)}` : '?focus=pages';
-    goto(`${page.url.pathname}${q}`, { noScroll: true, keepFocus: true });
+  // Open a page in the fullscreen viewer: just add ?page=<id> on top of the
+  // CURRENT params (TripView renders the viewer whenever that param is set, and
+  // closing drops only that param — so you land back exactly where you were).
+  /** @param {string} id */
+  function openViewer(id) {
+    const u = new URL(page.url.href);
+    u.searchParams.set('page', id);
+    goto(`${u.pathname}${u.search}`, { noScroll: true, keepFocus: true });
   }
 
   const inputClass =
@@ -119,7 +119,7 @@
     {#each pages as p (p.id)}
       <div class="group flex items-center gap-2 rounded-lg border-2 border-sand-200 bg-white px-3 py-2.5">
         <span class="flex-none text-[15px]" aria-hidden="true">📄</span>
-        <button type="button" class="min-w-0 flex-1 truncate text-left font-body text-[14.5px] font-extrabold text-cocoa-900 hover:text-coral-600" onclick={() => setViewing(p.id)}>
+        <button type="button" class="min-w-0 flex-1 truncate text-left font-body text-[14.5px] font-extrabold text-cocoa-900 hover:text-coral-600" onclick={() => openViewer(p.id)}>
           {p.title}
         </button>
         <a href={pageUrl(p.id)} target="_blank" rel="noopener noreferrer" class="flex-none font-body text-[12px] font-bold text-cocoa-400 hover:text-coral-600">new tab ↗</a>
@@ -181,24 +181,6 @@
   </div>
 {/snippet}
 
-{#if viewingPage}
-  <!-- Fullscreen viewer. The iframe's sandbox attribute is the SECOND layer —
-       the served document already carries CSP `sandbox allow-scripts
-       allow-popups` (opaque origin). Keep the two lists identical. -->
-  <div class="fixed inset-0 z-50 flex flex-col bg-cocoa-900/60 p-3 sm:p-6" role="dialog" aria-label={viewingPage.title}>
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-      <div class="flex flex-none items-center gap-2 border-b-2 border-sand-200 px-4 py-2.5">
-        <span class="text-[15px]" aria-hidden="true">📄</span>
-        <span class="min-w-0 flex-1 truncate font-body text-[14.5px] font-extrabold text-cocoa-900">{viewingPage.title}</span>
-        <a href={pageUrl(viewingPage.id)} target="_blank" rel="noopener noreferrer" class="flex-none font-body text-[12.5px] font-bold text-cocoa-400 hover:text-coral-600">new tab ↗</a>
-        <button type="button" aria-label="Close" onclick={() => setViewing('')} class="flex-none px-2 font-body text-[16px] font-extrabold text-cocoa-400 hover:text-cocoa-900">✕</button>
-      </div>
-      <iframe
-        src={pageUrl(viewingPage.id)}
-        title={viewingPage.title}
-        sandbox="allow-scripts allow-popups"
-        class="h-full w-full flex-1 border-0"
-      ></iframe>
-    </div>
-  </div>
-{/if}
+<!-- The fullscreen viewer itself lives in TripView (PageViewer.svelte),
+     driven by the ?page= param — so it opens from the dashboard strip too and
+     closing returns wherever you were. -->

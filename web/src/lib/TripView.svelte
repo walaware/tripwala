@@ -36,6 +36,7 @@
   import PagesSummary from '$lib/sections/summary/PagesSummary.svelte';
   import PagesSection from '$lib/sections/PagesSection.svelte';
   import PagesStrip from '$lib/sections/PagesStrip.svelte';
+  import PageViewer from '$lib/sections/PageViewer.svelte';
 
   /**
    * @type {{
@@ -184,9 +185,23 @@
   function clearFocus() {
     goto(page.url.pathname, { noScroll: true, keepFocus: true });
   }
-  /** Deep-link straight into a trip page's sandboxed viewer. @param {string} id */
+  // Trip-page viewer, URL-driven (?page=<id>) ON TOP of whatever else is in
+  // the URL — opening from the dashboard strip keeps you on the dashboard,
+  // opening inside the Pages module keeps focus=pages, and closing drops only
+  // the param (so ✕ or Back lands you exactly where you were).
+  const viewingTripPage = $derived(
+    (data.pages ?? []).find((/** @type {any} */ p) => p.id === page.url.searchParams.get('page')) ?? null
+  );
+  /** @param {string} id */
   function openPage(id) {
-    goto(`${page.url.pathname}?focus=pages&page=${encodeURIComponent(id)}`, { noScroll: true, keepFocus: true });
+    const u = new URL(page.url.href);
+    u.searchParams.set('page', id);
+    goto(`${u.pathname}${u.search}`, { noScroll: true, keepFocus: true });
+  }
+  function closePage() {
+    const u = new URL(page.url.href);
+    u.searchParams.delete('page');
+    goto(`${u.pathname}${u.search}`, { noScroll: true, keepFocus: true });
   }
   const settingsHref = $derived(`${page.url.pathname.replace(/\/$/, '')}/settings`);
   // Invite links for the "Who's in" invite modal.
@@ -327,6 +342,9 @@
   {#if top}{@render top()}{/if}
 
   <div class="trip-stack">
+    {#if !isPast && !isHidden('pages') && (data.pages ?? []).length}
+      <PagesStrip pages={data.pages ?? []} onOpen={openPage} />
+    {/if}
     {#if isPast}
       <PostTripSection {trip} {participants} photos={data.photos ?? []} />
       <WrappedSection {trip} {participants} {gear} {meals} expenses={data.expenses} />
@@ -337,9 +355,6 @@
       <SafetySection info={trip.emergency_info} />
     {/if}
     {#if !isPast}<OverviewBrief {trip} />{/if}
-    {#if !isHidden('pages') && (data.pages ?? []).length}
-      <PagesStrip pages={data.pages ?? []} onOpen={openPage} />
-    {/if}
     <MobileHub rows={mobileRows} onOpen={setFocus} onSettings={goSettings} />
     {#if !currentParticipantId}
       <p class="px-1 text-center font-body text-xs font-bold text-cocoa-500">
@@ -353,6 +368,11 @@
   {#if top}{@render top()}{/if}
 
   <div class="trip-stack">
+    {#if !isPast && !isHidden('pages') && (data.pages ?? []).length}
+      <!-- Embedded pages right under the header — a trip's fun one-off page
+           shouldn't hide in the rail. -->
+      <PagesStrip pages={data.pages ?? []} onOpen={openPage} />
+    {/if}
     {#if isPast}
       <PostTripSection {trip} {participants} photos={data.photos ?? []} />
       <section id="wrapped" class="anchor">
@@ -375,10 +395,6 @@
            city-grouped version). -->
       <div class="dash-main">
         {#if !isPast}<div class="mb-[var(--stack-gap,14px)]"><OverviewBrief {trip} /></div>{/if}
-        {#if !isHidden('pages') && (data.pages ?? []).length}
-          <!-- Embedded pages up top — a trip's fun one-off page shouldn't hide in the rail. -->
-          <div class="mb-[var(--stack-gap,14px)]"><PagesStrip pages={data.pages ?? []} onOpen={openPage} /></div>
-        {/if}
         {#if !isHidden('itinerary')}
           <section id="itinerary" class="anchor">
             <ItinerarySection shareToken={trip.share_token} {itineraryItems} cities={data.cities ?? []} mapApp={data.mapApp ?? 'apple'} {trip} {currentParticipantId} {ownerMode} onHide={hideHandler('itinerary')} onSettings={goSettings} />
@@ -428,6 +444,10 @@
       </p>
     {/if}
   </div>
+{/if}
+
+{#if viewingTripPage}
+  <PageViewer shareToken={trip.share_token} page={viewingTripPage} onClose={closePage} />
 {/if}
 
 <style>
