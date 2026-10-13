@@ -80,7 +80,10 @@
   });
 </script>
 
-<div class="relative overflow-hidden rounded-[var(--radius-md,10px)] border-2 border-sand-200" style="height: {height}px">
+<!-- `isolate` caps Leaflet's internal z-indexes (panes 400+, controls 1000)
+     inside this card's own stacking context so the map can never paint over
+     app overlays like the trip-page viewer (which sits at z-50). -->
+<div class="isolate relative z-0 overflow-hidden rounded-[var(--radius-md,10px)] border-2 border-sand-200" style="height: {height}px">
   <div bind:this={mapEl} class="h-full w-full"></div>
 </div>
 

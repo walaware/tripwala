@@ -364,7 +364,9 @@
   {/if}
 
   <!-- The map -->
-  <div bind:this={mapEl} class="mt-3 h-72 w-full overflow-hidden rounded-2xl border-2 border-sand-200 sm:h-96" aria-label="Trip map"></div>
+  <!-- `isolate` caps Leaflet's internal z-indexes (panes 400+, controls 1000)
+       so the map never paints over app overlays (e.g. the trip-page viewer). -->
+  <div bind:this={mapEl} class="isolate relative z-0 mt-3 h-72 w-full overflow-hidden rounded-2xl border-2 border-sand-200 sm:h-96" aria-label="Trip map"></div>
 
   <div class="mt-2 flex items-center justify-between gap-2">
     <span class="font-body text-[12px] font-bold text-cocoa-400">
