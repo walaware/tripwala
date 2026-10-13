@@ -33,6 +33,8 @@
   import GearSummary from '$lib/sections/summary/GearSummary.svelte';
   import FoodSummary from '$lib/sections/summary/FoodSummary.svelte';
   import ExpensesSummary from '$lib/sections/summary/ExpensesSummary.svelte';
+  import PagesSummary from '$lib/sections/summary/PagesSummary.svelte';
+  import PagesSection from '$lib/sections/PagesSection.svelte';
 
   /**
    * @type {{
@@ -117,6 +119,9 @@
         .filter(Boolean)
         .join(' · ') || 'Nothing to bring yet',
       food: meals.length ? `${mDone} of ${meals.length} cooks` : 'No meals planned yet',
+      pages: (data.pages ?? []).length
+        ? `${(data.pages ?? []).length} page${(data.pages ?? []).length === 1 ? '' : 's'}`
+        : 'No pages yet',
       expenses: (data.expenses ?? []).length
         ? (youNet > 0.005 ? `You're owed ${money(youNet)}` : youNet < -0.005 ? `You owe ${money(youNet)}` : 'All settled up')
         : 'No expenses yet',
@@ -306,6 +311,8 @@
       <ExpensesSection shareToken={trip.share_token} expenses={data.expenses} settlement={data.settlement} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {:else if focus === 'photos'}
       <PhotoSection url={trip.photo_album_url} onHide={null} onSettings={goSettings} />
+    {:else if focus === 'pages'}
+      <PagesSection shareToken={trip.share_token} pages={data.pages ?? []} {currentParticipantId} {ownerMode} onHide={null} onSettings={goSettings} />
     {/if}
   </div>
 {:else if isMobile}
@@ -383,6 +390,8 @@
               <FoodSummary {meals} onOpen={() => setFocus('food')} />
             {:else if r.key === 'expenses'}
               <ExpensesSummary expenses={data.expenses ?? []} settlement={data.settlement} {currentParticipantId} onOpen={() => setFocus('expenses')} />
+            {:else if r.key === 'pages'}
+              <PagesSummary pages={data.pages ?? []} onOpen={() => setFocus('pages')} />
             {/if}
           </RailModule>
         {/each}

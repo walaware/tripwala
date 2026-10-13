@@ -14,7 +14,10 @@ export const RAIL_MODULES = [
   // promised "the stuff to bring" and competed for the same meaning.
   { key: 'gear', emoji: '🎒', title: 'What to bring', nav: 'Gear' },
   { key: 'food', emoji: '🍳', title: "Who's cooking?", nav: 'Food' },
-  { key: 'expenses', emoji: '💸', title: 'Who paid what?', nav: 'Expenses' }
+  { key: 'expenses', emoji: '💸', title: 'Who paid what?', nav: 'Expenses' },
+  // Member-supplied embedded HTML views (e.g. a Claude artifact) — stored on the
+  // trip, served sandboxed. See $lib/server/pages.js for the security model.
+  { key: 'pages', emoji: '📄', title: 'Trip pages', nav: 'Pages' }
 ];
 
 /**

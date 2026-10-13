@@ -13,6 +13,7 @@ import { hasCoords, clampNum } from '$lib/coords.js';
 import { sanitizeCoordinates, trackStats, fromCoordinates } from '$lib/gpx.js';
 import { linkDisplayName } from '$lib/linkName.js';
 import { generateInviteToken } from '$lib/server/tokens.js';
+import { validatePage } from '$lib/server/pages.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB, matches the itinerary image field cap
 
@@ -849,6 +850,43 @@ export async function POST({ params, request, locals, url }) {
       // ---- Bookings (flights/stays/etc — #4) ----
       // Any member may add a booking (often a personal flight/room); the person
       // who added it, or an organizer, may edit/remove it.
+
+      // ---- Trip pages — embedded HTML views. Any member adds; creator or
+      // organizer edits/removes. The HTML is stored verbatim and only ever
+      // served sandboxed (see /[share_token]/page/[id] + $lib/server/pages.js).
+      case 'page_add': {
+        const v = validatePage(body);
+        if (!v.ok) throw error(400, v.error);
+        await pb.collection('trip_pages').create({ trip: trip.id, added_by: me.id, title: v.title, html: v.html });
+        break;
+      }
+
+      case 'page_update': {
+        const p = await inTrip('trip_pages', String(body.pageId ?? ''));
+        if (p.added_by !== me.id && !isOrganizer) {
+          throw error(403, 'Only the person who added this (or an organizer) can edit it');
+        }
+        // Title-only rename keeps the stored HTML; sending html replaces it.
+        if (body.html !== undefined) {
+          const v = validatePage(body);
+          if (!v.ok) throw error(400, v.error);
+          await pb.collection('trip_pages').update(p.id, { title: v.title, html: v.html });
+        } else {
+          const title = String(body.title ?? '').trim().slice(0, 120);
+          if (!title) throw error(400, 'Give the page a title');
+          await pb.collection('trip_pages').update(p.id, { title });
+        }
+        break;
+      }
+
+      case 'page_remove': {
+        const p = await inTrip('trip_pages', String(body.pageId ?? ''));
+        if (p.added_by !== me.id && !isOrganizer) {
+          throw error(403, 'Only the person who added this (or an organizer) can remove it');
+        }
+        await pb.collection('trip_pages').delete(p.id);
+        break;
+      }
 
       case 'booking_add': {
         const fields = bookingFields(body);

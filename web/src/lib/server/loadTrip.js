@@ -9,6 +9,7 @@ import { participantName } from '../displayName.js';
 import { shapeItinerary } from './itinerary.js';
 import { shapeCities } from './cities.js';
 import { shapeBookings } from './bookings.js';
+import { shapePages } from './pages.js';
 import { fetchAlbumPhotos } from './immich.js';
 import { isTripPast } from '../tripStatus.js';
 
@@ -41,7 +42,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
 
   const tripFilter = pb.filter('trip = {:id}', { id: trip.id });
 
-  const [participantsAll, gearItems, gearClaims, mealSlots, mealSignups, packingItems, expenseRows, itineraryRows, itineraryVotes, mapPinRows, cityRows, bookingRows] =
+  const [participantsAll, gearItems, gearClaims, mealSlots, mealSignups, packingItems, expenseRows, itineraryRows, itineraryVotes, mapPinRows, cityRows, bookingRows, pageRows] =
     await Promise.all([
       pb.collection('participants').getFullList({ filter: tripFilter, sort: 'created', expand: 'user' }),
       pb.collection('gear_items').getFullList({ filter: tripFilter, sort: 'created' }),
@@ -62,7 +63,10 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
       // trip_cities (#3) is newer than some deployments' data; tolerate absence.
       pb.collection('trip_cities').getFullList({ filter: tripFilter }).catch(() => []),
       // bookings (#4) is newer than some deployments' data; tolerate absence.
-      pb.collection('bookings').getFullList({ filter: tripFilter }).catch(() => [])
+      pb.collection('bookings').getFullList({ filter: tripFilter }).catch(() => []),
+      // trip_pages is newer than some deployments' data; tolerate absence.
+      // Metadata only — the HTML is served separately, sandboxed, per page.
+      pb.collection('trip_pages').getFullList({ filter: tripFilter, fields: 'id,title,added_by,updated' }).catch(() => [])
     ]);
 
   // Pending link-join requests aren't members yet — keep them out of every
@@ -126,6 +130,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
   const itineraryItems = shapeItinerary(itineraryRows, itineraryVotes, nameById, avatarById, currentParticipantId);
   const cities = shapeCities(cityRows);
   const bookings = shapeBookings(bookingRows);
+  const pages = shapePages(pageRows);
 
   // Post-trip photo wall: only finished trips (past or completed) with a linked
   // Immich album pull real thumbnails — no point paying the album fetch on a
@@ -230,6 +235,7 @@ export async function loadTripByShareToken(shareToken, currentParticipantId = nu
     itineraryItems,
     cities,
     bookings,
+    pages,
     photos,
     mapPins: mapPinRows.map((p) => ({
       id: p.id,
