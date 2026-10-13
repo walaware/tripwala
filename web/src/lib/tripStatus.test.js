@@ -6,11 +6,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isTripPast } from './tripStatus.js';
 
-const iso = (/** @type {Date} */ d) => d.toISOString().slice(0, 10);
+// LOCAL date math, matching isTripPast's "today": a trip stays ongoing until
+// local midnight, so "yesterday" must be the local calendar's yesterday. (UTC
+// math here made this test fail every evening west of Greenwich.)
 const daysFromNow = (/** @type {number} */ n) => {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + n);
-  return iso(d);
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 test('isTripPast: completed status always counts, regardless of dates', () => {
