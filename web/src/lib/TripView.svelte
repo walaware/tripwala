@@ -127,6 +127,9 @@
   // The rail modules (compact summaries on desktop; status rows on mobile) — the
   // shared registry, so the Trip settings screen's section nav stays in sync.
   const visibleRail = $derived(RAIL_MODULES.filter((r) => !hidden.has(r.key)));
+  // A sparse rail (sections turned off) leaves dead space under the summaries —
+  // spend it on a real mini map in the Pins & places card instead of the peek.
+  const mapExpanded = $derived(visibleRail.length <= 4);
   // Modules turned off for this trip → one dashed "not on this trip" row.
   const offModules = $derived(
     [
@@ -373,7 +376,7 @@
             {:else if r.key === 'bookings'}
               <BookingsSummary bookings={data.bookings ?? []} onOpen={() => setFocus('bookings')} />
             {:else if r.key === 'map'}
-              <MapSummary mapPins={data.mapPins ?? []} cities={data.cities ?? []} onOpen={() => setFocus('map')} />
+              <MapSummary mapPins={data.mapPins ?? []} cities={data.cities ?? []} {trip} expanded={mapExpanded} onOpen={() => setFocus('map')} />
             {:else if r.key === 'gear'}
               <GearSummary {gear} packing={data.packing ?? []} onOpen={() => setFocus('gear')} />
             {:else if r.key === 'food'}
